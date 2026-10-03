@@ -274,6 +274,7 @@ puts "TINY API UNROUTED OK"
     assert_ran(&output, &scratch, "TINY API UNROUTED OK");
 }
 
+/// Literal JSON paths, formatted resources, and unknown routes use the shared router.
 #[test]
 #[ignore = "requires CRuby + scaffold bundle"]
 fn cruby_gate_literal_json_routes_match() {
@@ -553,6 +554,7 @@ impl Drop for Server {
     }
 }
 
+/// Native HTTP dispatch preserves literal JSON routes and ordinary format suffixes.
 #[test]
 #[ignore = "requires the Spinel toolchain, run in its CI lane"]
 fn spinel_gate_literal_json_routes_match() {

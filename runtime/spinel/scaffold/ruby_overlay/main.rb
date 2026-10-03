@@ -72,6 +72,8 @@ module Main
     end
   end
 
+  # Decode a Rack request and dispatch its complete path through Router,
+  # preserving literal suffix routes while negotiating the response format.
   def self.dispatch_core_inner(env, stdin)
     ActionView::ViewHelpers.reset_slots!
     Broadcasts.reset_log!

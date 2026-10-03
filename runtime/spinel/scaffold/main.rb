@@ -281,6 +281,8 @@ module Main
     0
   end
 
+  # Serve static files or dispatch the complete request path through Router,
+  # preserving literal suffix routes while negotiating the response format.
   def self.dispatch(req, res)
     ActionView::ViewHelpers.reset_slots!
     Broadcasts.reset_log!
