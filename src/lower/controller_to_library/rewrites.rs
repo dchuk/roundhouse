@@ -897,9 +897,7 @@ fn json_render_encode(value: &Expr) -> Expr {
     // target. Keep values that need Rails' as_json hooks (including nested
     // models and Time) on the existing serializer path.
     let collection = matches!(&*value.node, ExprNode::Hash { .. } | ExprNode::Array { .. })
-        || value.ty.as_ref().is_some_and(|ty| {
-            matches!(ty, Ty::Hash { .. } | Ty::Array { .. } | Ty::Record { .. } | Ty::Tuple { .. })
-        });
+        || value.ty.as_ref().is_some_and(json_collection_type);
     let primitive_collection = collection && json_primitive_value(value);
     let recv = Expr::new(
         value.span,
@@ -921,6 +919,16 @@ fn json_render_encode(value: &Expr) -> Expr {
             parenthesized: true,
         },
     )
+}
+
+fn json_collection_type(ty: &Ty) -> bool {
+    match ty {
+        Ty::Hash { .. } | Ty::Array { .. } | Ty::Record { .. } | Ty::Tuple { .. } => true,
+        Ty::Union { variants } => {
+            !variants.is_empty() && variants.iter().all(json_collection_type)
+        }
+        _ => false,
+    }
 }
 
 fn json_primitive_value(value: &Expr) -> bool {
