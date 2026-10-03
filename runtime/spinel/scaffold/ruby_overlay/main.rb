@@ -88,17 +88,13 @@ module Main
         request[:method] = override
       end
     end
-    # Per-request format inference. Strip a `.json` suffix from the
-    # request path before route matching (so `/articles/1.json` and
-    # `/articles/1` share one route entry) and remember the format
-    # so the controller's `respond_to`-flattened branch can pick the
-    # right view + Content-Type. Default html for any unrecognized
-    # extension.
+    # Infer the response format while retaining the full request path.
+    # Router.match owns suffix matching and the literal-path fallback;
+    # stripping here would make an explicit `/feed.json` route unreachable.
     request_format = :html
     request_path = request[:path]
     if request_path.end_with?(".json")
       request_format = :json
-      request_path = request_path[0...-5]
     end
     # Turbo Stream is negotiated by the Accept header, not by a path
     # suffix — a Turbo-driven form POST asks for
