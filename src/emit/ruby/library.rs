@@ -7249,13 +7249,10 @@ fn boolean_cast_body(col: &Symbol) -> Expr {
 pub(crate) fn apply_preload_lowering(lcs: &mut [LibraryClass], app: &App) {
     use crate::dialect::Association;
 
-    // Gate: runtime Relations only arise in scope-chain apps (scope-free
-    // apps resolve every chain on the static arel path), and synthesis
-    // only pays for itself when some `includes(...)` survives to
-    // runtime. real-blog (`includes` but no scopes) and tiny-blog
-    // (scopes but no `includes`) both stay byte-identical.
-    let scopes = crate::lower::scope_chain::build_scope_registry(&app.models);
-    if !crate::lower::scope_chain::any_scopes(&scopes) || !app_mentions_includes(app) {
+    // A dynamic query can reach Relation without any named scope (for
+    // example, a helper returning a where.not chain). Its includes hint
+    // needs the same batch loaders. Apps with no includes remain untouched.
+    if !app_mentions_includes(app) {
         return;
     }
 
