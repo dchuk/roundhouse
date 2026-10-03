@@ -7397,15 +7397,15 @@ fn preload_targets(model: &crate::dialect::Model, app: &App) -> Vec<(String, Pre
     for assoc in model.associations() {
         match assoc {
             Association::BelongsTo { name, target, foreign_key, .. } => {
-                if !model_exists(target) {
+                let Some(target_model) = app.models.iter().find(|m| &m.name == target) else {
                     continue;
-                }
+                };
                 out.push((
                     name.as_str().to_string(),
                     PreloadKind::BelongsTo {
                         fk: foreign_key.as_str().to_string(),
                         target: target.0.as_str().to_string(),
-                        table: pluralize_snake(target.0.as_str()),
+                        table: target_model.table.0.as_str().to_string(),
                     },
                 ));
             }
