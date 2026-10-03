@@ -27,7 +27,7 @@ end
   private
 
   def books_for_list
-    Book.all.where.not(id: 0).includes(:author)
+    Book.all.where.not(id: 0).order(:id).includes(:author)
   end
 end
 "#)
