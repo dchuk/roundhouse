@@ -7388,6 +7388,7 @@ enum PreloadKind {
     RichText { attr: String, owner: String },
 }
 
+/// Resolve batchable associations against the app model registry and its table metadata.
 fn preload_targets(model: &crate::dialect::Model, app: &App) -> Vec<(String, PreloadKind)> {
     use crate::dialect::Association;
     use crate::naming::pluralize_snake;

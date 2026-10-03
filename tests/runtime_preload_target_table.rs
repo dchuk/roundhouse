@@ -3,6 +3,7 @@
 #[path = "support/emit_and_run.rs"]
 mod emit_and_run;
 
+/// Isolate table resolution with a namespaced target and an explicit table override.
 fn app() -> emit_and_run::Overlay {
     emit_and_run::empty_app()
         .write("app/models/application_record.rb", "class ApplicationRecord < ActiveRecord::Base\n  self.abstract_class = true\nend\n")
@@ -46,11 +47,13 @@ raise "expected 2 queries, got #{sql.length}: #{sql.join("; ")}" unless sql.leng
 puts "resolved table preloading passed"
 "#;
 
+/// CRuby preloads the resolved target table in one batch.
 #[test]
 fn belongs_to_preloader_uses_the_resolved_target_table() {
     app().run_ruby(ASSERTIONS).assert_passes();
 }
 
+/// Missing authors remain nil while CRuby still uses the resolved batch table.
 #[test]
 fn nullable_belongs_to_preloading_runs_on_ruby() {
     let script = ASSERTIONS
@@ -59,6 +62,7 @@ fn nullable_belongs_to_preloading_runs_on_ruby() {
     app().run_ruby(&script).assert_passes();
 }
 
+/// The compiled app preserves association values and the two-query bound.
 #[test]
 #[ignore = "requires the Spinel toolchain"]
 fn belongs_to_preloader_uses_the_resolved_target_table_on_spinel() {
