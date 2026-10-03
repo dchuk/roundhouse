@@ -114,6 +114,7 @@ pub(super) fn partial_view_call_with_record(
     ))
 }
 
+/// Lower controller render calls to view invocations or typed inline responses.
 pub(super) fn rewrite_render_to_views(
     expr: &Expr,
     module_name: Option<&str>,
@@ -892,6 +893,8 @@ fn html_escape_call(value: &Expr) -> Expr {
     )
 }
 
+/// Select the bundled JSON encoder for proven primitive collections; retain
+/// Rails serialization for values requiring custom hooks or temporal conversion.
 fn json_render_encode(value: &Expr) -> Expr {
     // JSON's bundled encoder already handles primitive collections on every
     // target. Keep values that need Rails' as_json hooks (including nested
@@ -921,6 +924,7 @@ fn json_render_encode(value: &Expr) -> Expr {
     )
 }
 
+/// Recognize collection types, including nonempty unions of only collections.
 fn json_collection_type(ty: &Ty) -> bool {
     match ty {
         Ty::Hash { .. } | Ty::Array { .. } | Ty::Record { .. } | Ty::Tuple { .. } => true,
@@ -931,6 +935,8 @@ fn json_collection_type(ty: &Ty) -> bool {
     }
 }
 
+/// Prove primitive contents from inferred types or nested literal shapes,
+/// including empty literals whose element types remain unconstrained.
 fn json_primitive_value(value: &Expr) -> bool {
     if value.ty.as_ref().is_some_and(json_primitive_type) {
         return true;
@@ -947,6 +953,7 @@ fn json_primitive_value(value: &Expr) -> bool {
     }
 }
 
+/// Accept only scalar JSON values and recursively primitive, closed collections.
 fn json_primitive_type(ty: &Ty) -> bool {
     match ty {
         Ty::Str | Ty::Sym | Ty::Int | Ty::Float | Ty::Bool | Ty::Nil | Ty::Bottom => true,

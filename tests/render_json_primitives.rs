@@ -2,6 +2,7 @@
 #[path = "support/emit_and_run.rs"]
 mod emit_and_run;
 
+/// Build generic controllers covering literal and conditional primitive payloads.
 fn app() -> emit_and_run::Overlay {
     emit_and_run::empty_app()
         .write("app/controllers/application_controller.rb", "class ApplicationController < ActionController::Base\nend\n")
@@ -42,11 +43,13 @@ raise controller.body unless controller.body == '{"name":"one"}'
 puts "primitive JSON passed"
 "#;
 
+/// CRuby preserves primitive payload bytes, status, and content type.
 #[test]
 fn inline_primitive_json_runs() {
     app().run_ruby(ASSERTIONS).assert_passes();
 }
 
+/// Temporal values must retain Rails serialization instead of primitive encoding.
 #[test]
 fn a_nested_time_keeps_rails_json_serialization() {
     app()
@@ -71,6 +74,7 @@ raise controller.body unless controller.body == '{"at":"2026-07-01T12:34:56.000Z
         .assert_passes();
 }
 
+/// The compiled runtime handles the same primitive and conditional payloads.
 #[test]
 #[ignore = "requires the Spinel toolchain"]
 fn inline_primitive_json_runs_on_spinel() {
