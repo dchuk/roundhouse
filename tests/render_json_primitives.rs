@@ -80,3 +80,49 @@ raise controller.body unless controller.body == '{"at":"2026-07-01T12:34:56.000Z
 fn inline_primitive_json_runs_on_spinel() {
     app().run_spinel(ASSERTIONS).assert_passes();
 }
+
+/// These targets flatten runtime constants into one namespace. JSON escaping
+/// must coexist with ViewHelpers' HTML escaping when both runtimes are emitted.
+#[test]
+fn json_and_view_html_escape_constants_do_not_collide() {
+    use roundhouse::analyze::Analyzer;
+    use roundhouse::emit::{crystal, csharp, go, kotlin, swift};
+    use std::collections::BTreeSet;
+    use std::path::Path;
+
+    let mut app = roundhouse::ingest::ingest_app(Path::new("fixtures/tiny-blog"))
+        .expect("ingest tiny-blog");
+    Analyzer::new(&app).analyze(&mut app);
+    let mut collisions = Vec::new();
+    for (target, files, json_path, view_path, declaration) in [
+        ("Go", go::emit(&app), "app/v2/json_builder.go", "app/v2/view_helpers.go",
+         "var "),
+        ("C#", csharp::emit(&app), "app/runtime/JsonBuilder.cs", "app/runtime/ViewHelpers.cs",
+         "public static partial class RuntimeConstants { public static readonly "),
+        ("Crystal", crystal::emit(&app), "src/json_builder.cr", "src/view_helpers.cr",
+         ""),
+        ("Kotlin", kotlin::emit(&app), "src/main/kotlin/JsonBuilder.kt", "src/main/kotlin/ViewHelpers.kt",
+         "val "),
+        ("Swift", swift::emit(&app), "Sources/App/JsonBuilder.swift", "Sources/App/ViewHelpers.swift",
+         "let "),
+    ] {
+        let names = |path: &str| -> BTreeSet<String> {
+            let file = files.iter().find(|file| file.path == Path::new(path))
+                .unwrap_or_else(|| panic!("missing {target} runtime {path}"));
+            let names: BTreeSet<_> = file.content.lines()
+                .filter_map(|line| line.strip_prefix(declaration))
+                .filter_map(|line| line.split_once(" ="))
+                .filter_map(|(left, _)| left.split_whitespace().last())
+                .filter(|name| name.bytes().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == b'_'))
+                .map(str::to_string).collect();
+            assert!(!names.is_empty(), "no {target} runtime constants found in {path}");
+            names
+        };
+        let json_names = names(json_path);
+        let view_names = names(view_path);
+        for name in json_names.intersection(&view_names) {
+            collisions.push(format!("{target}: {name} is declared in both {json_path} and {view_path}"));
+        }
+    }
+    assert!(collisions.is_empty(), "{}", collisions.join("\n"));
+}
