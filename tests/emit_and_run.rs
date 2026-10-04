@@ -3687,3 +3687,106 @@ end
         .run_test("test/models/article_summary_test.rb")
         .assert_passes();
 }
+
+/// Exercise both bang aliases after primitive arrays receive custom objects;
+/// CRuby's JsonRender fallback must retain the object's as_json contract.
+#[test]
+fn array_bang_maps_keep_custom_json_serialization_in_ruby() {
+    emit_and_run::real_blog()
+        .edit("config/routes.rb", "Rails.application.routes.draw do\n", r#"Rails.application.routes.draw do
+  get "/payloads/local_map", to: "payloads#local_map"
+  get "/payloads/ivar_collect", to: "payloads#ivar_collect"
+  get "/payloads/skipped_map", to: "payloads#skipped_map"
+  get "/payloads/copying_map", to: "payloads#copying_map"
+"#)
+        .write("app/models/custom_payload.rb", r#"class CustomPayload
+  def as_json(options = {})
+    { "value" => "rails" }
+  end
+end
+"#)
+        .write("app/controllers/payloads_controller.rb", r#"class PayloadsController < ApplicationController
+  def local_map
+    items = ["primitive"]
+    items.map! { CustomPayload.new }
+    render json: items
+  end
+  def ivar_collect
+    @items = ["primitive"]
+    @items.collect! { CustomPayload.new }
+    render json: @items
+  end
+  def skipped_map
+    items = ["primitive"]
+    items.map! { CustomPayload.new } if false
+    render json: items
+  end
+  def copying_map
+    items = ["primitive"]
+    items.map { CustomPayload.new }
+    render json: items
+  end
+end
+"#)
+        .run_ruby(r##"
+require_relative "app/controllers/payloads_controller"
+{
+  local_map: '[{"value":"rails"}]',
+  ivar_collect: '[{"value":"rails"}]',
+  skipped_map: '["primitive"]',
+  copying_map: '["primitive"]'
+}.each do |action, expected|
+  controller = PayloadsController.new
+  controller.process_action(action)
+  raise "#{action}: #{controller.body.inspect}" unless controller.body == expected
+end
+puts "bang-map JSON mutation contract passed"
+"##).assert_passes();
+}
+
+/// A numeric control isolates mutation/identity from the custom-object JSON
+/// fallback, which is CRuby-only for conservatively union-typed collections.
+fn array_bang_map_identity_app() -> emit_and_run::Overlay {
+    emit_and_run::real_blog()
+        .write("app/lib/array_mutation_probe.rb", r#"class ArrayMutationProbe
+  def local_map
+    items = [2, 5]
+    original = items
+    result = items.map! { |value| value * 3 }
+    [items, original, result]
+  end
+  def ivar_collect
+    @items = [2, 5]
+    original = @items
+    result = @items.collect! { |value| value + 7 }
+    [@items, original, result]
+  end
+end
+"#)
+}
+
+/// Check contents and object identity: replacing map! with map could produce
+/// the right return value while failing to mutate the original receiver.
+const ARRAY_BANG_MAP_IDENTITY_ASSERTIONS: &str = r#"
+probe = ArrayMutationProbe.new
+mapped = probe.local_map
+raise "map! lost identity" unless mapped[0].equal?(mapped[1]) && mapped[0].equal?(mapped[2])
+raise "map! lost values" unless mapped[0] == [6, 15]
+collected = probe.ivar_collect
+raise "collect! lost identity" unless collected[0].equal?(collected[1]) && collected[0].equal?(collected[2])
+raise "collect! lost values" unless collected[0] == [9, 12]
+puts "bang-map identity contract passed"
+"#;
+
+/// The emitted Ruby preserves both destructive transform aliases.
+#[test]
+fn array_bang_maps_keep_receiver_identity_in_ruby() {
+    array_bang_map_identity_app().run_ruby(ARRAY_BANG_MAP_IDENTITY_ASSERTIONS).assert_passes();
+}
+
+/// Compile and run the unchanged numeric identity control natively.
+#[test]
+#[ignore = "requires the Spinel toolchain"]
+fn array_bang_maps_keep_receiver_identity_on_spinel() {
+    array_bang_map_identity_app().run_spinel(ARRAY_BANG_MAP_IDENTITY_ASSERTIONS).assert_passes();
+}

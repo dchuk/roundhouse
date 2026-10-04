@@ -1396,20 +1396,20 @@ impl<'a> BodyTyper<'a> {
                     let mut hash_writes: Vec<(bool, Symbol, Ty)> = Vec::new();
                     collect_hash_index_writes(e, &mut hash_writes);
                     // Array accumulator writes anywhere in this statement —
-                    // `arr << x` / `arr.push(x)`, including nested in a loop,
+                    // `arr << x` / `arr.push(x)` / `arr.map! { x }`, including nested in a loop,
                     // branch, or block (`while { acc << x }`, `items.each {
                     // acc << x }`). The Array analog of the Hash `h[k]=v`
                     // block above, but subtree-wide: the accumulator idiom
                     // fills a nested loop/block while the `arr = []` seed sits
                     // at the top level, so a same-level-only match (like the
                     // Hash one) would miss it — `analyze_expr(e)` above has
-                    // already stamped every pushed arg's `.ty`, so a subtree
+                    // already stamped the argument and transformed-array types, so a subtree
                     // scan can read them. Widen the outer-bound array's
                     // element from its empty-literal `Var` placeholder (or
                     // union the observed element into an existing one). Only
                     // bindings that already exist as `Array[_]` are touched.
-                    let mut pushes: Vec<(bool, Symbol, Ty)> = Vec::new();
-                    collect_array_pushes(e, &mut pushes);
+                    let mut array_writes: Vec<(bool, Symbol, Ty)> = Vec::new();
+                    collect_array_element_writes(e, &mut array_writes);
                     // Apply the hash writes collected above. Deferred to
                     // here so both collections finish while the `&mut
                     // exprs[i]` borrow is live, leaving it dead before
@@ -1484,7 +1484,7 @@ impl<'a> BodyTyper<'a> {
                             }
                         }
                     }
-                    for (is_ivar, name, elem) in pushes {
+                    for (is_ivar, name, elem) in array_writes {
                         let bindings = if is_ivar {
                             &mut local_ctx.ivar_bindings
                         } else {
@@ -1517,8 +1517,8 @@ impl<'a> BodyTyper<'a> {
                     // Nil-seeded scalar refinement — the `size = nil` …
                     // `size = v` pair, where the write is usually nested
                     // in a block and so invisible to this statement walk.
-                    // Subtree-wide for the same reason `collect_array_
-                    // pushes` is. Each observed write unions into the
+                    // Subtree-wide, like `collect_array_element_writes`.
+                    // Each observed write unions into the
                     // seed's running type and retro-stamps the seed
                     // (Assign + literal), so the decl, the binding and
                     // every later `.nil?` read all resolve to the same
@@ -1870,27 +1870,32 @@ pub(crate) fn multiassign_target_ty(rhs: &Option<Ty>, index: usize) -> Option<Ty
     }
 }
 
-/// Walk an Expr collecting every `Assign { target: LValue::Var, .. }`
-/// it contains, recording `name → expr.ty`. Used to thread local
-/// bindings produced by an embedded assignment (`(x = find_by(...))`)
-/// from a `BoolOp::And` left-arm or `If::cond` into the subsequent
-/// arm's Ctx. The Seq-statement-level handler covers the common case
-/// of top-level `x = ...` statements; this covers the nested form.
+/// Collect element writes through plain local/ivar array receivers, including
+/// accumulator pushes and destructive `map!` / `collect!` transformations.
+/// The latter's call type already carries the block-result element type, but
+/// a discarded return still changes the receiver read by later statements.
 ///
-/// Descent stops at scope-introducing nodes (`Lambda`, `Let`) so a
-/// block parameter assignment doesn't leak out.
-/// Collect array-accumulator pushes (`arr << x`, `arr.push/append/
-/// unshift/prepend(x, …)`) anywhere in `expr`, as `(is_ivar, name,
-/// element_ty)` per push whose receiver is a plain local or ivar.
-/// Recurses through loop/branch bodies and blocks (via `for_each_child`)
-/// so the accumulator idiom — seed `arr = []` at the top, fill it inside
-/// a nested `while`/`each` — is caught. `concat` is excluded: it flattens
-/// its argument, so the pushed element type isn't the argument's type.
-/// A pushed arg typed `Var`/`Bottom` contributes nothing. Callers refine
-/// only bindings that already exist as `Array[_]`, so an inner shadowing
-/// local of the same name at worst adds imprecision, never a wrong write.
-fn collect_array_pushes(expr: &Expr, out: &mut Vec<(bool, Symbol, Ty)>) {
-    if let ExprNode::Send { recv: Some(recv), method, args, .. } = &*expr.node {
+/// Walk nested loops/branches/blocks and union each observed write with the
+/// prior binding: a branch may not run, and a same-named block parameter may
+/// shadow an outer local. This is conservative widening, not alias analysis
+/// or proof that a transform executed. Non-mutating `map`/`collect` contribute
+/// no writes. `concat` remains excluded because it flattens its arguments.
+/// Open (`Var`/`Bottom`) element types contribute no resolved information.
+fn collect_array_element_writes(expr: &Expr, out: &mut Vec<(bool, Symbol, Ty)>) {
+    if let ExprNode::Send { recv: Some(recv), method, args, block, .. } = &*expr.node {
+        if matches!(method.as_str(), "map!" | "collect!") && block.is_some()
+            && matches!(recv.ty, Some(Ty::Array { .. }))
+        {
+            if let Some(Ty::Array { elem }) = &expr.ty {
+                if !elem.is_open() {
+                    match &*recv.node {
+                        ExprNode::Ivar { name } => out.push((true, name.clone(), (**elem).clone())),
+                        ExprNode::Var { name, .. } => out.push((false, name.clone(), (**elem).clone())),
+                        _ => {}
+                    }
+                }
+            }
+        }
         if matches!(method.as_str(), "<<" | "push" | "append" | "unshift" | "prepend") {
             let slot = match &*recv.node {
                 ExprNode::Ivar { name } => Some((true, name.clone())),
@@ -1915,7 +1920,7 @@ fn collect_array_pushes(expr: &Expr, out: &mut Vec<(bool, Symbol, Ty)>) {
             }
         }
     }
-    expr.node.for_each_child(&mut |child| collect_array_pushes(child, out));
+    expr.node.for_each_child(&mut |child| collect_array_element_writes(child, out));
 }
 
 /// Every container index-write in `expr`'s subtree whose receiver is a
@@ -1924,7 +1929,7 @@ fn collect_array_pushes(expr: &Expr, out: &mut Vec<(bool, Symbol, Ty)>) {
 ///
 /// A computed receiver (`a.b[k] = v`) has no binding to refine and is
 /// skipped. Open written types are skipped for the same reason as in
-/// [`collect_array_pushes`] — they carry nothing to union in.
+/// [`collect_array_element_writes`] — they carry nothing to union in.
 fn collect_hash_index_writes(expr: &Expr, out: &mut Vec<(bool, Symbol, Ty)>) {
     let write = match &*expr.node {
         ExprNode::Assign { target: LValue::Index { recv, .. }, value }
@@ -1960,7 +1965,7 @@ fn collect_hash_index_writes(expr: &Expr, out: &mut Vec<(bool, Symbol, Ty)>) {
 
 /// Every local-variable assignment in `expr`'s subtree that carries a
 /// usable stamped type, as `(name, assigned_ty)`. The scalar counterpart
-/// of [`collect_array_pushes`]: the nil-accumulator idiom writes from
+/// of [`collect_array_element_writes`]: the nil-accumulator idiom writes from
 /// inside a block (`opts.each { |k, v| size = v }`) while the `size =
 /// nil` seed sits at the enclosing statement level, so a same-level
 /// match would never see the write.

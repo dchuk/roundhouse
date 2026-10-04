@@ -2041,6 +2041,76 @@ end
     }
 }
 
+/// A bang transform mutates the receiver even when its return is discarded.
+/// Keep both element alternatives: a nested branch or block need not run.
+#[test]
+fn array_bang_maps_widen_later_local_and_ivar_reads() {
+    for receiver in ["items", "@items"] {
+        for method in ["map!", "collect!"] {
+            for mutation in [
+                format!("{receiver}.{method} {{ CustomPayload.new }}"),
+                format!("{receiver}.{method} {{ CustomPayload.new }} if flag"),
+                format!("[1].each {{ {receiver}.{method} {{ CustomPayload.new }} }}"),
+            ] {
+                let source = format!(r#"class MutationProbe
+  def values(flag = true)
+    {receiver} = ["primitive"]
+    {mutation}
+    {receiver}
+  end
+end
+"#);
+                let app = app_from_files(&[
+                    ("app/lib/mutation_probe.rb", &source),
+                    ("app/lib/custom_payload.rb", "class CustomPayload\nend\n"),
+                ]);
+                let probe = app.library_classes.iter()
+                    .find(|c| c.name.0.as_str() == "MutationProbe").unwrap();
+                let body = &probe.methods.iter()
+                    .find(|m| m.name.as_str() == "values").unwrap().body;
+                let Some(Ty::Array { elem }) = &body.ty else {
+                    panic!("{mutation}: expected array, got {:?}", body.ty);
+                };
+                let Ty::Union { variants } = &**elem else {
+                    panic!("{mutation}: stale receiver element type {elem:?}");
+                };
+                assert!(variants.contains(&Ty::Str), "{mutation}: preserve the original alternative");
+                assert!(variants.iter().any(|ty| matches!(ty,
+                    Ty::Class { id, .. } if id.0.as_str() == "CustomPayload"
+                )), "{mutation}: missing the written object alternative: {variants:?}");
+            }
+        }
+    }
+}
+
+/// Non-mutating transforms return a new array and leave the receiver typed
+/// as its original elements, for both a local and an instance variable.
+#[test]
+fn array_non_bang_maps_do_not_widen_the_receiver() {
+    for receiver in ["items", "@items"] {
+        for method in ["map", "collect"] {
+            let source = format!(r#"class MutationProbe
+  def values
+    {receiver} = ["primitive"]
+    {receiver}.{method} {{ CustomPayload.new }}
+    {receiver}
+  end
+end
+"#);
+            let app = app_from_files(&[
+                ("app/lib/mutation_probe.rb", &source),
+                ("app/lib/custom_payload.rb", "class CustomPayload\nend\n"),
+            ]);
+            let probe = app.library_classes.iter()
+                .find(|c| c.name.0.as_str() == "MutationProbe").unwrap();
+            let body = &probe.methods.iter()
+                .find(|m| m.name.as_str() == "values").unwrap().body;
+            assert_eq!(body.ty, Some(Ty::Array { elem: Box::new(Ty::Str) }),
+                "{receiver}.{method} must not mutate the receiver type");
+        }
+    }
+}
+
 #[test]
 fn create_view_columns_register_with_real_schema_types() {
     // A model backed by a SQL `create_view` gets its columns from the
