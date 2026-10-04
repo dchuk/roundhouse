@@ -9,6 +9,8 @@
 mod emit_and_run;
 #[path = "support/class_configuration.rs"]
 mod class_configuration;
+#[path = "support/data_factory.rs"]
+mod data_factory;
 #[path = "support/rails_root_join.rs"]
 mod rails_root_join;
 
@@ -3531,5 +3533,157 @@ raise "script tag: #{html}" unless html == %(<script src="/assets/admin.js"></sc
 puts "ok"
 "#,
         )
+        .assert_passes();
+}
+
+/// `t.integer …, limit: 8` is a `bigint` now (the width Rails creates),
+/// where it was an `integer`. On SQLite both are INTEGER and both type
+/// as `Integer`, so the emitted program must keep a value past 32 bits
+/// through a save and a reload, as it did before.
+#[test]
+fn an_eight_byte_integer_column_keeps_a_value_past_32_bits() {
+    emit_and_run::real_blog()
+        .edit(
+            "db/schema.rb",
+            "create_table \"articles\", force: :cascade do |t|",
+            "create_table \"articles\", force: :cascade do |t|\n    t.integer \"views\", limit: 8, default: 0, null: false",
+        )
+        .write(
+            "test/models/article_views_test.rb",
+            r#"require "test_helper"
+
+class ArticleViewsTest < ActiveSupport::TestCase
+  test "a value past 32 bits survives a reload" do
+    article = Article.create!(title: "Popular", body: "A long enough body", views: 5_000_000_000)
+    assert_equal 5_000_000_000, Article.find(article.id).views
+  end
+end
+"#,
+        )
+        .run_test("test/models/article_views_test.rb")
+        .assert_passes();
+}
+
+#[test]
+fn literal_data_factories_and_aliases_check_cleanly_and_execute() {
+    use roundhouse::ident::{ClassId, Symbol};
+    use roundhouse::ty::Ty;
+
+    let run = emit_and_run::real_blog()
+        .write("app/lib/factory_examples.rb", data_factory::DECLARATIONS)
+        .write("app/controllers/data_probe_controller.rb", r#"class DataProbeController < ApplicationController
+  def index
+    @declared = FactoryExamples::First::Result.new("first", 1.0, false)
+    @alias = FactoryExamples::First::ChainedAlias.new(name: nil, score: 0.0, enabled: true)
+    @second = FactoryExamples::Second::Result.new(name: "second")
+    @empty = FactoryExamples::Empty::Result.new
+  end
+end
+"#)
+        .run_ruby(r#"
+first = FactoryExamples::First.build
+aliased = FactoryExamples::First.aliased
+qualified = FactoryExamples::First.qualified
+second = FactoryExamples::Second.build
+empty = FactoryExamples::Empty.build
+raise "wrong declared class" unless first.class == FactoryExamples::First::Result
+raise "alias created another class" unless aliased.class == first.class && FactoryExamples::First::Alias == first.class && FactoryExamples::First::ChainedAlias == first.class
+raise "member values changed" unless first.name == "first" && first.score == 0.8 && first.enabled == false
+raise "nil/zero/true changed" unless aliased.name.nil? && aliased.score == 0.0 && aliased.enabled == true
+raise "positional constructor changed" unless qualified.name == "qualified" && qualified.score == 1.0 && qualified.enabled == false
+raise "same-named factory crossed owners" unless second.class == FactoryExamples::Second::Result && second.name == "second" && second.class != first.class
+raise "empty factory changed" unless empty.class == FactoryExamples::Empty::Result && empty.members.empty?
+raise "Data lost immutability" unless first.frozen? && !first.respond_to?(:name=)
+puts "Data factory identity, aliases, constructors, values and immutability passed"
+"#);
+    run.assert_passes();
+    let emitted = std::fs::read_to_string(run.emitted.join("app/models/factory_examples/first.rb")).unwrap();
+    assert!(emitted.contains("Data.define"), "{emitted}");
+    for (owner, stem, readers) in [
+        ("FactoryExamples::First", "first", vec!["name", "score", "enabled"]),
+        ("FactoryExamples::Second", "second", vec!["name"]),
+        ("FactoryExamples::Empty", "empty", vec![]),
+    ] {
+        let sidecar = std::fs::read_to_string(run.emitted.join(
+            format!("sig/app/models/factory_examples/{stem}.rbs")
+        )).unwrap();
+        assert!(sidecar.contains("class Result < ::Data"), "{sidecar}");
+        assert!(!sidecar.contains("class Alias") && !sidecar.contains("class ChainedAlias"), "{sidecar}");
+        let signatures = roundhouse::rbs::parse_app_signatures(&sidecar).expect("emitted RBS parses");
+        let id = ClassId(Symbol::from(format!("{owner}::Result")));
+        let factory = signatures.get(&id).expect("factory return type is declared");
+        assert!(factory.contains_key(&Symbol::from("new")), "{sidecar}");
+        for reader in readers {
+            let signature = &factory[&Symbol::from(reader)];
+            assert!(matches!(signature, Ty::Fn { ret, .. } if **ret == Ty::Untyped), "{sidecar}");
+            assert!(!factory.contains_key(&Symbol::from(format!("{reader}="))), "{sidecar}");
+        }
+        let owner_methods = &signatures[&ClassId(Symbol::from(owner))];
+        let Ty::Fn { ret, .. } = &owner_methods[&Symbol::from("build")] else {
+            panic!("build has no function signature: {sidecar}");
+        };
+        assert_eq!(ret.as_ref(), &Ty::Class { id, args: vec![] }, "{sidecar}");
+    }
+}
+
+/// A file in `app/models/<model>/` often reopens the model only to
+/// hold a nested class. That reopen is a namespace, so the model keeps
+/// its own file. Before, the reopen became a library class whose file
+/// was the model's file, so the emit wrote the nested class over the
+/// model, and `Article.find` raised `NoMethodError`.
+#[test]
+fn a_model_reopened_to_hold_a_nested_class_keeps_its_model() {
+    a_reopen_at_keeps_the_model("app/models/article/summary.rb");
+}
+
+/// The same reopen outside `app/models`. The ingest reads these
+/// folders later, and the reopen must not write over the model there
+/// either.
+#[test]
+fn a_model_reopened_in_app_services_keeps_its_model() {
+    a_reopen_at_keeps_the_model("app/services/article/summary.rb");
+}
+
+#[test]
+fn a_model_reopened_in_lib_keeps_its_model() {
+    a_reopen_at_keeps_the_model("lib/article/summary.rb");
+}
+
+fn a_reopen_at_keeps_the_model(path: &str) {
+    emit_and_run::real_blog()
+        .edit(
+            "app/models/article.rb",
+            "  validates :body, presence: true, length: { minimum: 10 }\n",
+            "  validates :body, presence: true, length: { minimum: 10 }\n\n  DRAFT = \"draft\".freeze\n\n  def summary\n    Summary.new(self)\n  end\n",
+        )
+        .write(
+            path,
+            r##"class Article
+  class Summary
+    def initialize(article)
+      @article = article
+    end
+
+    def text
+      "#{@article.title} (#{Article::DRAFT})"
+    end
+  end
+end
+"##,
+        )
+        .write(
+            "test/models/article_summary_test.rb",
+            r##"require "test_helper"
+
+class ArticleSummaryTest < ActiveSupport::TestCase
+  test "the model and its nested class both load" do
+    article = Article.find(articles(:one).id)
+    assert_equal "#{article.title} (draft)", article.summary.text
+    assert Article < ApplicationRecord
+  end
+end
+"##,
+        )
+        .run_test("test/models/article_summary_test.rb")
         .assert_passes();
 }
