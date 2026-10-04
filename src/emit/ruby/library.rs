@@ -1040,6 +1040,8 @@ fn insert_rel_param(m: &mut crate::dialect::MethodDef, rel_param: &Symbol) -> bo
     true
 }
 
+/// Lower demanded model and association chains to Relations, including
+/// scope-free apps; each body still has its own rewrite demand gate.
 pub(crate) fn apply_scope_lowering(lcs: &mut [LibraryClass], app: &App) {
     // `has_rich_text`'s two preload scopes, and `has_one_attached`'s
     // one. Ahead of the `any_scopes` early return below, because an app
