@@ -1876,9 +1876,10 @@ pub(crate) fn multiassign_target_ty(rhs: &Option<Ty>, index: usize) -> Option<Ty
 /// a discarded return still changes the receiver read by later statements.
 ///
 /// Walk nested loops/branches/blocks and union each observed write with the
-/// prior binding: a branch may not run, and a same-named block parameter may
-/// shadow an outer local. This is conservative widening, not alias analysis
-/// or proof that a transform executed. Non-mutating `map`/`collect` contribute
+/// prior binding: a branch may not run. Lambda parameters and Let bindings
+/// keep writes to same-named outer locals separate; captured locals and ivars
+/// remain visible. This is conservative widening, not alias analysis or
+/// proof that a transform executed. Non-mutating `map`/`collect` contribute
 /// no writes. `concat` remains excluded because it flattens its arguments.
 /// Open (`Var`/`Bottom`) element types contribute no resolved information.
 fn collect_array_element_writes(expr: &Expr, out: &mut Vec<(bool, Symbol, Ty)>) {
@@ -1920,7 +1921,26 @@ fn collect_array_element_writes(expr: &Expr, out: &mut Vec<(bool, Symbol, Ty)>) 
             }
         }
     }
-    expr.node.for_each_child(&mut |child| collect_array_element_writes(child, out));
+    match &*expr.node {
+        ExprNode::Lambda { params, rest_param, block_param, body, .. } => {
+            let mut scoped_writes = Vec::new();
+            collect_array_element_writes(body, &mut scoped_writes);
+            out.extend(scoped_writes.into_iter().filter(|(is_ivar, name, _)| {
+                *is_ivar || (!params.contains(name)
+                    && rest_param.as_ref() != Some(name)
+                    && block_param.as_ref() != Some(name))
+            }));
+        }
+        ExprNode::Let { name, value, body, .. } => {
+            // The initializer still evaluates in the enclosing scope.
+            collect_array_element_writes(value, out);
+            let mut scoped_writes = Vec::new();
+            collect_array_element_writes(body, &mut scoped_writes);
+            out.extend(scoped_writes.into_iter()
+                .filter(|(is_ivar, written, _)| *is_ivar || written != name));
+        }
+        _ => expr.node.for_each_child(&mut |child| collect_array_element_writes(child, out)),
+    }
 }
 
 /// Every container index-write in `expr`'s subtree whose receiver is a

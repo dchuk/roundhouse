@@ -2111,6 +2111,79 @@ end
     }
 }
 
+/// A positional/rest block parameter names a different array from the outer
+/// local, including when a nested block captures that parameter.
+#[test]
+fn array_bang_maps_do_not_export_shadowed_block_parameter_writes() {
+    for method in ["map!", "collect!"] {
+        for mutation in [
+            format!("[[1]].each {{ |items| items.{method} {{ CustomPayload.new }} }}"),
+            format!("[1].each {{ |*items| items.{method} {{ CustomPayload.new }} }}"),
+            format!("[[1]].each {{ |items| [1].each {{ items.{method} {{ CustomPayload.new }} }} }}"),
+        ] {
+            let source = format!(r#"class MutationProbe
+  def values
+    items = ["primitive"]
+    {mutation}
+    items
+  end
+end
+"#);
+            let app = app_from_files(&[
+                ("app/lib/mutation_probe.rb", &source),
+                ("app/lib/custom_payload.rb", "class CustomPayload\nend\n"),
+            ]);
+            let probe = app.library_classes.iter()
+                .find(|c| c.name.0.as_str() == "MutationProbe").unwrap();
+            let body = &probe.methods.iter()
+                .find(|m| m.name.as_str() == "values").unwrap().body;
+            assert_eq!(body.ty, Some(Ty::Array { elem: Box::new(Ty::Str) }),
+                "{mutation}: a block parameter cannot write the outer local");
+        }
+    }
+}
+
+/// Filtering a shadowed local must retain captured locals, ivars with the
+/// same bare name, and outer writes evaluated before entering the block.
+#[test]
+fn array_bang_map_scope_filter_preserves_real_outer_writes() {
+    for method in ["map!", "collect!"] {
+        for (receiver, mutation) in [
+            ("items", format!("[[1]].each {{ |other| [1].each {{ items.{method} {{ CustomPayload.new }} }} }}")),
+            ("@items", format!("[[1]].each {{ |items| @items.{method} {{ CustomPayload.new }} }}")),
+            ("items", format!("[items.{method} {{ CustomPayload.new }}.map {{ |item| 0 }}].each {{ |items| items.{method} {{ 1 }} }}")),
+        ] {
+            let source = format!(r#"class MutationProbe
+  def values
+    {receiver} = ["primitive"]
+    {mutation}
+    {receiver}
+  end
+end
+"#);
+            let app = app_from_files(&[
+                ("app/lib/mutation_probe.rb", &source),
+                ("app/lib/custom_payload.rb", "class CustomPayload\nend\n"),
+            ]);
+            let probe = app.library_classes.iter()
+                .find(|c| c.name.0.as_str() == "MutationProbe").unwrap();
+            let body = &probe.methods.iter()
+                .find(|m| m.name.as_str() == "values").unwrap().body;
+            let Some(Ty::Array { elem }) = &body.ty else {
+                panic!("{mutation}: expected array, got {:?}", body.ty);
+            };
+            let Ty::Union { variants } = &**elem else {
+                panic!("{mutation}: missing captured write: {elem:?}");
+            };
+            assert_eq!(variants.len(), 2, "{mutation}: no shadowed element may escape");
+            assert!(variants.contains(&Ty::Str));
+            assert!(variants.iter().any(|ty| matches!(ty,
+                Ty::Class { id, .. } if id.0.as_str() == "CustomPayload"
+            )), "{mutation}: missing the actual outer write: {variants:?}");
+        }
+    }
+}
+
 #[test]
 fn create_view_columns_register_with_real_schema_types() {
     // A model backed by a SQL `create_view` gets its columns from the

@@ -3761,6 +3761,32 @@ fn array_bang_map_identity_app() -> emit_and_run::Overlay {
     result = @items.collect! { |value| value + 7 }
     [@items, original, result]
   end
+  def shadowed_local
+    items = [2, 5]
+    labels = [[1], [3]].map do |items|
+      items.map! { |value| value + 7 }
+      items.join(":")
+    end
+    items.join(",") + "|" + labels.join(",")
+  end
+  def heterogeneous_shadowed_local
+    items = [2, 5]
+    labels = [[1], [3]].map do |items|
+      items.map! { |value| (value + 7).to_s }
+      items.join(":")
+    end
+    items.join(",") + "|" + labels.join(",")
+  end
+  def captured_local
+    items = [2, 5]
+    [1].each { |offset| items.collect! { |value| value + offset } }
+    items
+  end
+  def ivar_under_local_parameter
+    @items = [2, 5]
+    [[9]].each { |items| @items.collect! { |value| value + items.length } }
+    @items
+  end
 end
 "#)
 }
@@ -3775,16 +3801,24 @@ raise "map! lost values" unless mapped[0] == [6, 15]
 collected = probe.ivar_collect
 raise "collect! lost identity" unless collected[0].equal?(collected[1]) && collected[0].equal?(collected[2])
 raise "collect! lost values" unless collected[0] == [9, 12]
+raise "block parameter leaked into outer local" unless probe.shadowed_local == "2,5|8,10"
+raise "captured local lost its mutation" unless probe.captured_local == [3, 6]
+raise "local parameter hid an ivar mutation" unless probe.ivar_under_local_parameter == [3, 6]
 puts "bang-map identity contract passed"
 "#;
 
-/// The emitted Ruby preserves both destructive transform aliases.
+/// The emitted Ruby preserves both destructive aliases, including an inner
+/// array changing from integers to strings under a shadowed parameter.
 #[test]
 fn array_bang_maps_keep_receiver_identity_in_ruby() {
-    array_bang_map_identity_app().run_ruby(ARRAY_BANG_MAP_IDENTITY_ASSERTIONS).assert_passes();
+    let assertions = format!("{ARRAY_BANG_MAP_IDENTITY_ASSERTIONS}\n\
+        raise \"type-changing shadowed array failed\" unless probe.heterogeneous_shadowed_local == \"2,5|8,10\"\n");
+    array_bang_map_identity_app().run_ruby(&assertions).assert_passes();
 }
 
-/// Compile and run the unchanged numeric identity control natively.
+/// Compile and run homogeneous numeric identity/scope controls natively.
+/// The heterogeneous inner-array case stays CRuby-only: Spinel rejects
+/// storing a String through its boxed Integer-array receiver.
 #[test]
 #[ignore = "requires the Spinel toolchain"]
 fn array_bang_maps_keep_receiver_identity_on_spinel() {
