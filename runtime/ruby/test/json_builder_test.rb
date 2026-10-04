@@ -27,6 +27,17 @@ class JsonBuilderTest < Minitest::Test
     assert_equal "\\u003cb\\u003e\\u0026\\u003c/b\\u003e", JsonBuilder.encode_string("<b>&</b>")
   end
 
+  def test_escape_html_entities_preserves_json_structure_and_existing_escapes
+    json = %q({"<tag>":"<b>&</b>","escaped":"\\n\\u003c"})
+    expected = %q({"\\u003ctag\\u003e":"\\u003cb\\u003e\\u0026\\u003c/b\\u003e","escaped":"\\n\\u003c"})
+    assert_equal expected, JsonBuilder.escape_html_entities(json)
+  end
+
+  def test_escape_html_entities_preserves_rails_8_1_line_separators
+    json = "{\"separators\":\"\u2028\u2029\"}"
+    assert_equal json, JsonBuilder.escape_html_entities(json)
+  end
+
   # ── encode_value ───────────────────────────────────────────────
 
   def test_encode_value_nil

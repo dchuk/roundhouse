@@ -10,7 +10,7 @@ fn app() -> emit_and_run::Overlay {
         .write("config/routes.rb", "Rails.application.routes.draw do\n  get \"/payload\", to: \"payloads#show\"\n  get \"/list\", to: \"payloads#index\"\n  get \"/choose\", to: \"payloads#choose\"\nend\n")
         .write("app/controllers/payloads_controller.rb", r#"class PayloadsController < ApplicationController
   def show
-    render json: { message: "hello\n\"world\"", count: 2, active: true, missing: nil, nested: { tags: ["one", "two"], empty: [], object: {} } }, status: 202
+    render json: { message: "hello\n\"world\"", html: "<b>&</b>", count: 2, active: true, missing: nil, nested: { tags: ["one", "two"], empty: [], object: {} } }, status: 202
   end
   def index
     render json: [{ name: "first", count: 1 }, { name: "second", count: 2 }]
@@ -28,7 +28,7 @@ controller = PayloadsController.new
 controller.process_action(:show)
 raise "wrong status" unless controller.status == 202
 raise "wrong content type" unless controller.content_type == "application/json"
-raise controller.body unless controller.body == '{"message":"hello\n\"world\"","count":2,"active":true,"missing":null,"nested":{"tags":["one","two"],"empty":[],"object":{}}}'
+raise controller.body unless controller.body == '{"message":"hello\n\"world\"","html":"\u003cb\u003e\u0026\u003c/b\u003e","count":2,"active":true,"missing":null,"nested":{"tags":["one","two"],"empty":[],"object":{}}}'
 controller = PayloadsController.new
 controller.process_action(:index)
 raise controller.body unless controller.body == '[{"name":"first","count":1},{"name":"second","count":2}]'

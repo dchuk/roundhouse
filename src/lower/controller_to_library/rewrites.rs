@@ -912,12 +912,30 @@ fn json_render_encode(value: &Expr) -> Expr {
             },
         },
     );
-    Expr::new(
+    let encoded = Expr::new(
         value.span,
         ExprNode::Send {
             recv: Some(recv),
             method: Symbol::from(if primitive_collection { "generate" } else { "encode" }),
             args: vec![value.clone()],
+            block: None,
+            parenthesized: true,
+        },
+    );
+    if !primitive_collection {
+        return encoded;
+    }
+    // Rails escapes HTML entities after JSON generation. Keep that behavior
+    // in shared typed runtime code, without re-escaping the JSON syntax.
+    Expr::new(
+        value.span,
+        ExprNode::Send {
+            recv: Some(Expr::new(
+                value.span,
+                ExprNode::Const { path: vec![Symbol::from("JsonBuilder")] },
+            )),
+            method: Symbol::from("escape_html_entities"),
+            args: vec![encoded],
             block: None,
             parenthesized: true,
         },

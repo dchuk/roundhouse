@@ -43,6 +43,7 @@ module JsonBuilder
   # Ruby/JS/Crystal/RE2 all accept the hex escape, so this is the
   # cross-target spelling.
   ESCAPE_PATTERN = /[\\"\n\r\t\x08\f<>&]/.freeze
+  HTML_ESCAPE_PATTERN = /[<>&]/.freeze
 
   # Escape a string for embedding inside JSON double-quotes. Does
   # NOT add the surrounding quotes — `encode_value` wraps a String
@@ -55,6 +56,13 @@ module JsonBuilder
   # Option-wrapping at every call site.
   def self.encode_string(s)
     s.gsub(ESCAPE_PATTERN, ESCAPES)
+  end
+
+  # Apply Rails' default HTML-entity escaping to an already encoded JSON
+  # document. These characters occur only inside JSON strings, so escaping
+  # the document preserves its structure and existing JSON escapes.
+  def self.escape_html_entities(json)
+    json.gsub(HTML_ESCAPE_PATTERN, ESCAPES)
   end
 
   # Render a scalar Ruby value as its JSON fragment, complete with
