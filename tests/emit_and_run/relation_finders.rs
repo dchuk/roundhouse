@@ -1,5 +1,8 @@
 use super::emit_and_run;
 
+/// Build the same lookup through each receiver-preservation path: inline,
+/// assigned to a local/ivar, or returned from a controller helper. The
+/// optional association makes a successful lookup distinguish NULL from a row.
 fn app(finder: &str, receiver: &str) -> emit_and_run::Overlay {
     let lookup = match receiver {
         "inline" => format!("widget = Widget.includes(:category).{finder}(id: params[:id])"),
@@ -61,6 +64,8 @@ fn includes_find_by_preserves_its_relation_receiver() {
     assert_finder("find_by", "inline");
 }
 
+/// Execute present/NULL association lookups, then check the terminal's
+/// missing-record contract: a nil result for find_by versus a 404 for find_by!.
 fn assert_finder(finder: &str, receiver: &str) {
     let missing = if finder == "find_by!" {
         "raise \"missing record must be 404\" unless status == 404"
