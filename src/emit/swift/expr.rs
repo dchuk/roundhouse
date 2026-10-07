@@ -1602,7 +1602,7 @@ fn emit_string_interp(parts: &[InterpPart]) -> String {
 
 fn emit_bool_op(op: BoolOpKind, left: &Expr, right: &Expr, e: &Expr) -> String {
     let l = emit_expr(left);
-    let r = emit_expr(right);
+    let r = group_try_rhs(&emit_expr(right));
     match op {
         BoolOpKind::And => format!("{l} && {r}"),
         // `||` is logical-or for Bool results, but Ruby's `x || default`
@@ -2503,6 +2503,18 @@ fn forces_parens(method: &str) -> bool {
     )
 }
 
+/// Swift forbids a bare `try` / `try!` / `try?` as the RHS of a
+/// non-assignment operator (`!=`, `&&`, `??`, …). Wrap so
+/// `expected != (try f())` is legal. A leading try on the whole infix
+/// expression stays unwrapped at the call site.
+fn group_try_rhs(rhs: &str) -> String {
+    if rhs.starts_with("try ") || rhs.starts_with("try!") || rhs.starts_with("try?") {
+        format!("({rhs})")
+    } else {
+        rhs.to_string()
+    }
+}
+
 /// Render a Ruby send as a Swift call, property access, or primitive operation.
 fn emit_send(
     recv: Option<&Expr>,
@@ -2699,16 +2711,7 @@ fn emit_send(
         }
         match crate::emit::shared::ops::classify_binop(method) {
             crate::emit::shared::ops::BinopCase::NativeInfix(op) => {
-                // Swift permits `try` at the start of an infix expression,
-                // but an eager right operand needs its own parentheses:
-                // `expected != (try Router.decodeCapture(value))`.
-                // Leave lazy boolean operators to their existing lowering.
-                let rhs = &args_s[0];
-                let rhs = if !matches!(op, "&&" | "||") && rhs.starts_with("try ") {
-                    format!("({rhs})")
-                } else {
-                    rhs.clone()
-                };
+                let rhs = group_try_rhs(&args_s[0]);
                 return format!("{} {} {rhs}", emit_expr(r), op);
             }
             // `<<` / `push` → Array.append.
