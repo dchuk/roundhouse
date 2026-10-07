@@ -60,6 +60,14 @@ incorrect `Book | untyped` union. The inventory admits exactly those two
 additional warnings, without dropping the call warnings, changing the
 Writebook pin, or relaxing error, gap, emission or corpus checks.
 
+The controller source-attribution correction in PR #520 gives the existing
+`require_unauthenticated_access` gap its app-relative source path instead of
+`UsersController`. That lets the existing `@layout_class` diagnostic at
+`application.html.erb:43:32` carry an Info note attributed to that gap. The
+inventory replaces exactly those two old identities, with their count of one;
+the macro remains unsupported. The pin, corpus identities, lowering/emission
+residue, unrelated warning entries and inventory assertions are unchanged.
+
 ## Roadmap, not a support claim
 
 1. **Routes.** [PR #199](https://github.com/rubys/roundhouse/pull/199) owns the
