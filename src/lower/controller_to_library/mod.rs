@@ -1303,7 +1303,81 @@ fn build_methods(
     // Class-side methods are already seeded at the start of build_methods;
     // do not append them again (duplicate defs break several emitters).
 
+    // Specialize `controller_name` / `controller_path` /
+    // `controller_class_name` as string literals so Base does not need
+    // `self.class.to_s` reflection or an ActiveSupport char-walk that
+    // several AOT string emits cannot host yet.
+    methods.push(synthesize_controller_string_method(
+        controller,
+        "controller_name",
+        &controller_name_literal(controller),
+    ));
+    methods.push(synthesize_controller_string_method(
+        controller,
+        "controller_path",
+        &controller_path_literal(controller),
+    ));
+    methods.push(synthesize_controller_string_method(
+        controller,
+        "controller_class_name",
+        controller.name.0.as_str(),
+    ));
+
     methods
+}
+
+/// `ArticlesController` → `"articles"`; `Admin::UsersController` →
+/// `"users"`. Matches `analyze::ivar_set::controller_name_of`.
+fn controller_name_literal(controller: &Controller) -> String {
+    let leaf = crate::naming::demodulize(controller.name.0.as_str());
+    let stripped = leaf.strip_suffix("Controller").unwrap_or(leaf);
+    crate::naming::snake_case(stripped)
+}
+
+/// `ArticlesController` → `"articles"`; `Admin::UsersController` →
+/// `"admin/users"`. Matches `analyze::controller_view_prefix`.
+fn controller_path_literal(controller: &Controller) -> String {
+    let name = controller.name.0.as_str();
+    let stripped = name.strip_suffix("Controller").unwrap_or(name);
+    stripped
+        .split("::")
+        .map(crate::naming::snake_case)
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+/// Instance method returning a String literal — AOT-safe override of
+/// Base's `controller_name` / `controller_path` / `controller_class_name`.
+fn synthesize_controller_string_method(
+    controller: &Controller,
+    name: &str,
+    value: &str,
+) -> MethodDef {
+    let span = crate::span::Span::synthetic();
+    MethodDef {
+        visibility: crate::dialect::MethodVisibility::Public,
+        unsupported_formals: None,
+        has_anonymous_block: false,
+        name_span: span,
+        name: Symbol::from(name),
+        receiver: MethodReceiver::Instance,
+        params: vec![],
+        body: Expr::new(
+            span,
+            ExprNode::Lit {
+                value: crate::expr::Literal::Str {
+                    value: value.to_string(),
+                },
+            },
+        ),
+        signature: Some(crate::lower::typing::fn_sig(vec![], Ty::Str)),
+        effects: EffectSet::default(),
+        enclosing_class: Some(controller.name.0.clone()),
+        kind: AccessorKind::Method,
+        is_async: false,
+        mutates_self: false,
+        block_param: None,
+    }
 }
 
 /// Names a controller marks with `helper_method :x` whose public
