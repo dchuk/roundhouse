@@ -2503,6 +2503,7 @@ fn forces_parens(method: &str) -> bool {
     )
 }
 
+/// Render a Ruby send as a Swift call, property access, or primitive operation.
 fn emit_send(
     recv: Option<&Expr>,
     method: &str,
