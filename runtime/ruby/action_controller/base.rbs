@@ -75,9 +75,6 @@ module ActionController
     # (`Admin::UsersController` → `"admin/users"`).
     def controller_name: () -> String
     def controller_path: () -> String
-    # Qualified class name as a String. Base answers itself; each
-    # concrete controller's lowerer overrides with a literal.
-    def controller_class_name: () -> String
 
     # `attr_reader` — getter only. Setters are internal (assigned via
     # `@status =`, `@body =`, `@location =` from render/redirect_to/head).

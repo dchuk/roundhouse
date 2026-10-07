@@ -1303,51 +1303,41 @@ fn build_methods(
     // Class-side methods are already seeded at the start of build_methods;
     // do not append them again (duplicate defs break several emitters).
 
-    // Specialize `controller_name` / `controller_path` /
-    // `controller_class_name` as string literals so Base does not need
-    // `self.class.to_s` reflection or an ActiveSupport char-walk that
-    // several AOT string emits cannot host yet.
-    methods.push(synthesize_controller_string_method(
+    // Specialize `controller_name` / `controller_path` as string
+    // literals so Base does not need `self.class.to_s` reflection or
+    // an ActiveSupport char-walk that several AOT string emits cannot
+    // host yet. Upsert (retain + push) so a source-defined method of
+    // the same name cannot leave a duplicate MethodDef.
+    upsert_controller_string_method(
+        &mut methods,
         controller,
         "controller_name",
-        &controller_name_literal(controller),
-    ));
-    methods.push(synthesize_controller_string_method(
+        &crate::analyze::controller_name_of(&controller.name),
+    );
+    upsert_controller_string_method(
+        &mut methods,
         controller,
         "controller_path",
-        &controller_path_literal(controller),
-    ));
-    methods.push(synthesize_controller_string_method(
-        controller,
-        "controller_class_name",
-        controller.name.0.as_str(),
-    ));
+        &crate::analyze::controller_view_prefix(&controller.name),
+    );
 
     methods
 }
 
-/// `ArticlesController` → `"articles"`; `Admin::UsersController` →
-/// `"users"`. Matches `analyze::ivar_set::controller_name_of`.
-fn controller_name_literal(controller: &Controller) -> String {
-    let leaf = crate::naming::demodulize(controller.name.0.as_str());
-    let stripped = leaf.strip_suffix("Controller").unwrap_or(leaf);
-    crate::naming::snake_case(stripped)
-}
-
-/// `ArticlesController` → `"articles"`; `Admin::UsersController` →
-/// `"admin/users"`. Matches `analyze::controller_view_prefix`.
-fn controller_path_literal(controller: &Controller) -> String {
-    let name = controller.name.0.as_str();
-    let stripped = name.strip_suffix("Controller").unwrap_or(name);
-    stripped
-        .split("::")
-        .map(crate::naming::snake_case)
-        .collect::<Vec<_>>()
-        .join("/")
+/// Replace any prior def of `name`, then push the AOT string-literal
+/// override — duplicate MethodDefs break several emitters.
+fn upsert_controller_string_method(
+    methods: &mut Vec<MethodDef>,
+    controller: &Controller,
+    name: &str,
+    value: &str,
+) {
+    methods.retain(|m| m.name.as_str() != name);
+    methods.push(synthesize_controller_string_method(controller, name, value));
 }
 
 /// Instance method returning a String literal — AOT-safe override of
-/// Base's `controller_name` / `controller_path` / `controller_class_name`.
+/// Base's `controller_name` / `controller_path`.
 fn synthesize_controller_string_method(
     controller: &Controller,
     name: &str,

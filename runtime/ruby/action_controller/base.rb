@@ -446,21 +446,17 @@ module ActionController
     # underscored leaf (`ArticlesController` → `"articles"`) and the
     # path form that keeps namespaces (`Admin::UsersController` →
     # `"admin/users"`). Defaults answer for `ActionController::Base`
-    # itself. Each concrete controller's lowerer overrides all three
-    # with string literals — AOT targets cannot host
-    # `self.class.to_s` reflection, and a shared ActiveSupport
-    # char-walk (`underscore` / `demodulize`) does not yet compile
-    # on every strict-target string emit.
+    # itself. Each concrete controller's lowerer overrides both with
+    # string literals — AOT targets cannot host `self.class.to_s`
+    # reflection, and a shared ActiveSupport char-walk (`underscore`
+    # / `demodulize`) does not yet compile on every strict-target
+    # string emit.
     def controller_name
       "base"
     end
 
     def controller_path
       "action_controller/base"
-    end
-
-    def controller_class_name
-      "ActionController::Base"
     end
 
     # Subclasses override. Error message omits `self.class.name` —
