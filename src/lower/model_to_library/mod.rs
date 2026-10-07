@@ -242,6 +242,22 @@ pub(crate) fn lower_models_inner(
     materialization: Materialization<'_>,
     finder_inputs: FinderInputs,
 ) -> (Vec<LibraryClass>, HashMap<ClassId, crate::analyze::ClassInfo>) {
+    lower_models_inner_with_ruby_values(
+        models, schema, extra_class_infos, params_specs, unfolded, materialization,
+        finder_inputs, false,
+    )
+}
+
+pub(crate) fn lower_models_inner_with_ruby_values(
+    models: &[Model],
+    schema: &Schema,
+    extra_class_infos: Vec<(ClassId, crate::analyze::ClassInfo)>,
+    params_specs: &crate::lower::controller_to_library::params::ParamsSpecs,
+    unfolded: &std::collections::HashSet<(ClassId, Symbol)>,
+    materialization: Materialization<'_>,
+    finder_inputs: FinderInputs,
+    ruby_read_values: bool,
+) -> (Vec<LibraryClass>, HashMap<ClassId, crate::analyze::ClassInfo>) {
     let mut all_methods: Vec<(Vec<MethodDef>, ClassId, Option<&Table>, &Model)> = Vec::new();
     let mut classes: HashMap<ClassId, crate::analyze::ClassInfo> = HashMap::new();
     for model in models {
@@ -381,7 +397,9 @@ pub(crate) fn lower_models_inner(
             let unfold = method.receiver == crate::dialect::MethodReceiver::Class
                 && unfolded.contains(&(model.name.clone(), method.name.clone()));
             if !unfold {
-                crate::lower::arel::rewrite_arel_in_expr(&mut method.body, schema, &classes);
+                crate::lower::arel::rewrite_arel_in_expr_with_ruby_values(
+                    &mut method.body, schema, &classes, &[], ruby_read_values,
+                );
             }
             type_method_body(method, &classes, table, Some(model));
         }
@@ -546,6 +564,7 @@ fn model_class(model: &Model, methods: Vec<MethodDef>, table: Option<&Table>) ->
         name: model.name.clone(),
         is_module: false,
         parent: model.parent.clone(),
+        parent_span: Default::default(),
         // Mixins and constants must survive in every model projection.
         includes: crate::analyze::model_includes(model),
         methods,
@@ -616,7 +635,7 @@ pub(crate) fn collect_model_constants(model: &Model) -> Vec<(Symbol, Expr)> {
 /// dynamic targets often run fine without it. The skip-list below must
 /// stay in sync with the claiming passes — each entry names the pass
 /// that consumes the shape.
-fn report_unclaimed_unknowns(model: &Model) {
+fn report_unclaimed_unknowns(model: &Model, schema: &Schema) {
     use crate::diagnostic::{Diagnostic, Severity};
     use crate::expr::LValue;
 
@@ -736,6 +755,18 @@ fn report_unclaimed_unknowns(model: &Model) {
         // asks it rather than re-deriving the arity.
         if name == "has_rich_text"
             && crate::lower::rich_text::rich_text_attrs(model)
+                .iter()
+                .any(|(span, _)| *span == expr.span)
+        {
+            continue;
+        }
+        // Bare `has_markdown :body` — claimed by lower::plain_text_attr
+        // (named plain-text association+storage) only when the
+        // `action_text_markdowns` table is present. Option-carrying
+        // forms and missing-table apps stay unclaimed.
+        if name == "has_markdown"
+            && crate::lower::plain_text_attr::record_table_present(schema)
+            && crate::lower::plain_text_attr::plain_text_attrs(model)
                 .iter()
                 .any(|(span, _)| *span == expr.span)
         {
@@ -930,6 +961,14 @@ pub fn writable_field_set(
     for (_span, attr) in crate::lower::rich_text::rich_text_attrs(model) {
         writable.insert(attr);
     }
+    // Callers without schema cannot prove the backing table; those
+    // paths go through `build_methods` which gates expansion. Here the
+    // attrs are still shape-claimed — `push_plain_text_methods` is the
+    // hard gate. Keep permit surface aligned when the declaration is
+    // present (Writebook / emit_and_run always ship the table).
+    for (_span, attr) in crate::lower::plain_text_attr::plain_text_attrs(model) {
+        writable.insert(attr);
+    }
     // `has_one_attached :avatar` synthesizes `avatar=` the same way, so
     // a permitted `:avatar` (campfire's signup, profile, bot and account
     // forms all permit one) reaches the record instead of being dropped
@@ -1021,7 +1060,7 @@ fn build_methods_with_finder_inputs(
 ) -> Vec<MethodDef> {
     // No-op outside an emit diagnostics scope, so the many direct
     // test callers of the lowering entries are unaffected.
-    report_unclaimed_unknowns(model);
+    report_unclaimed_unknowns(model, schema);
 
     let mut methods: Vec<MethodDef> = Vec::new();
 
@@ -1050,6 +1089,7 @@ fn build_methods_with_finder_inputs(
         // project_level_3_adapter_emit.md.
         if finder_inputs == FinderInputs::Request {
             methods.push(adapter_emit::synth_find_primary_key_input(&model.name, table));
+            methods.push(adapter_emit::synth_exists_primary_key_input(&model.name, table));
         }
         push_adapter_methods(&mut methods, &model.name, table, schema);
         // `from_params(p: <Resource>Params)` — typed factory matching the
@@ -1145,6 +1185,9 @@ fn build_methods_with_finder_inputs(
     // before `push_user_methods` for the usual reason (a hand-written
     // method in the model body wins).
     crate::lower::rich_text::push_rich_text_methods(&mut methods, model);
+    // Named plain-text association (`has_markdown`) — same slot; the
+    // record's `content` column needs no coder override.
+    crate::lower::plain_text_attr::push_plain_text_methods(&mut methods, model, schema);
     // `has_one_attached` — the attachment-EXISTENCE reader, over the
     // synthesized `ActiveStorage::Attachment` row. Same ordering
     // rationale as the macros above (a hand-written method wins).
@@ -1854,10 +1897,15 @@ fn build_class_info_with_finder_inputs(
         "count",
         fn_sig(vec![], Ty::Int),
     );
+    let exists_input = if finder_inputs == FinderInputs::Request {
+        finder_input_ty(&key_ty)
+    } else {
+        key_ty.clone()
+    };
     insert_default(
         &mut info.class_methods,
         "exists?",
-        fn_sig(vec![(Symbol::from("id"), key_ty.clone())], Ty::Bool),
+        fn_sig(vec![(Symbol::from("id"), exists_input)], Ty::Bool),
     );
     insert_default(
         &mut info.class_methods,

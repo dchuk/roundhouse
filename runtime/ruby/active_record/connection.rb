@@ -265,6 +265,8 @@ module ActiveRecord
 
     # Keep public input intact until schema-selected normalization, then raise
     # the same RecordNotFound for an invalid key or an absent record.
+    # Reject nil before a key-typed adapter can coerce it to a real
+    # zero/empty-string key.
     def self.find(id)
       raise RecordNotFound, "Couldn't find #{name} with id=#{id}" if id.nil?
       result = _find_primary_key_input(id)
@@ -288,6 +290,22 @@ module ActiveRecord
       return IntegerKeyCast.input_text(id) if _string_primary_key
       cast = IntegerKeyCast.parse(id)
       cast.valid ? cast.value : nil
+    end
+
+    # Reject nil before a key-typed adapter can coerce it. Generated
+    # models override `_exists_primary_key_input` with schema-selected
+    # dispatch (same split as find) so Spinel never compiles String into
+    # an Integer adapter slot.
+    def self.exists?(id)
+      return false if id.nil?
+      _exists_primary_key_input(id)
+    end
+
+    # Fallback for hand-written subclasses using the generic adapter.
+    def self._exists_primary_key_input(id)
+      key = _cast_primary_key(id)
+      return false if key.nil?
+      _adapter_exists_by_id?(key)
     end
 
     # Stateless facade — every member delegates straight to `Db`, so a
@@ -532,6 +550,13 @@ module ActiveRecord
     # they drive a Relation or `_adapter_*` directly.
     def self.where(conditions)
       ActiveRecord::Relation.new(self).where(conditions.to_h)
+    end
+
+    # Model Hash finders use the relation's NULL / IN predicates too.
+    # `.to_h` matches `where` above: Hash is a no-op (nil / Array values
+    # survive); non-Hash inputs raise rather than reach Relation's SQL path.
+    def self.find_by(conditions)
+      ActiveRecord::Relation.new(self).find_by(conditions.to_h)
     end
 
     # Rails-shape `all` fallback, same story as `where` above: a lazy

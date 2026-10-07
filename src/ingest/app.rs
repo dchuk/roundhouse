@@ -1054,6 +1054,7 @@ end
                 name: crate::ident::ClassId(crate::ident::Symbol::from("Rails::Application")),
                 is_module: false,
                 parent: None,
+                parent_span: Default::default(),
                 includes: Vec::new(),
                 methods,
                 nullable_columns: Vec::new(),
@@ -1747,6 +1748,7 @@ end
     // After the splice: a macro has to resolve against the concern's
     // class-side methods, and its expansion joins the same filter chain.
     super::class_configuration::expand(&mut app, &concern_class_method_spans, &framework_shadow_scopes)?;
+    super::class_attribute::expand(&mut app, &concern_class_method_spans, &framework_shadow_scopes);
     expand_class_body_macros(&mut app);
     // The same idea one base over: `const` / `prop` under a class
     // whose ancestry a sidecar says reaches `T::Props` IS the
@@ -1772,11 +1774,12 @@ end
     // Last: needs every model's complete `enums` table, including the
     // columns an included concern declared.
     map_enum_labels(&mut app);
-    // Last of all: `has_rich_text` can arrive through a concern's
-    // `included do`, so the declaration scan has to run after the
-    // splices — and `ActionText::RichText` has to be in `app.models`
-    // before anything downstream enumerates models.
+    // Last of all: `has_rich_text` / `has_markdown` can arrive through a
+    // concern's `included do`, so the declaration scan has to run after
+    // the splices — and the ActionText record models have to be in
+    // `app.models` before anything downstream enumerates models.
     crate::lower::rich_text::synthesize_record_model(&mut app);
+    crate::lower::plain_text_attr::synthesize_record_model(&mut app);
     app.const_resolver = crate::timings::phase("rubydex: wait", || const_resolver.finish());
     // Admission needs complete controller permit demand and model DSL,
     // including declarations contributed by either kind of Concern,
@@ -5082,6 +5085,7 @@ fn synthesize_redirect_controller(
         // otherwise start challenging a redirect Rails answers
         // unconditionally.
         parent: Some(crate::ident::ClassId(Symbol::from("ActionController::Base"))),
+        parent_span: Default::default(),
         body,
         layout: crate::dialect::LayoutDecl::default(),
         sibling_classes: Vec::new(),

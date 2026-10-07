@@ -124,6 +124,15 @@ module ActiveStorage
     dot.nil? || dot == 0 ? filename : filename[0, dot].to_s
   end
 
+  # Marcel's filename half when `attach(io:, filename:)` omits
+  # `content_type:` — the MIME registry by extension, else octet-stream.
+  # Byte sniffing stays with `ImageAnalyzer` after the bytes exist.
+  def self.content_type_for_filename(filename)
+    ext = Filename.new(filename).extension_without_delimiter
+    looked = Mime::Type.lookup_by_extension(ext)
+    looked.nil? ? "application/octet-stream" : looked.to_s
+  end
+
   # Where the blob's file lives, keyed by the blob's `key` column.
   #
   # Every method RAISES: no storage service is modeled in the shared
@@ -186,11 +195,27 @@ module ActiveStorage
     end
   end
 
-  # The video previewer's swap point — Rails' `Previewer::VideoPreviewer`,
-  # which draws a poster frame with ffmpeg. The shared definition raises,
-  # as `Processor` does: nothing here can run a program, and answering
+  # Rails' generic Active Storage exception base (`activestorage/errors.rb`).
+  # Concrete errors hang off this so `rescue ActiveStorage::Error` matches.
+  class Error < StandardError
+  end
+
+  # Rails' `ActiveStorage::PreviewError` — raised when a previewer cannot
+  # draw a poster (ffmpeg failed, timed out, …). Apps and railties rescue
+  # or raise it; campfire's `TimeLimitedVideoPreviewer` raises it when
+  # the wall-clock limit trips. Parent is `Error`, not bare StandardError,
+  # matching Rails.
+  class PreviewError < Error
+  end
+
+  # The video previewer's swap point. Drawing is the class-side
+  # `Previewer.poster` (ffmpeg on the ruby family); Rails' instance API
+  # lives under the nested `VideoPreviewer` so an app can subclass it
+  # (`TimeLimitedVideoPreviewer < ActiveStorage::Previewer::VideoPreviewer`)
+  # without a NameError at boot. The shared `poster` raises, as
+  # `Processor` does: nothing here can run a program, and answering
   # the video's own bytes as its poster would put them in an `<img>`.
-  # The ruby family reopens it over ffmpeg
+  # The ruby family reopens `poster` over ffmpeg
   # (`runtime/spinel/active_storage_previewer.rb`), the same command
   # Rails runs; a tree without ffmpeg raises there the way Rails does.
   class Previewer
@@ -199,6 +224,14 @@ module ActiveStorage
       raise NotImplementedError,
             "ActiveStorage::Previewer.poster: no previewer on this target — " \
             "a video poster needs ffmpeg"
+    end
+
+    # Rails' `ActiveStorage::Previewer::VideoPreviewer`. This base class
+    # exists so `class TimeLimitedVideoPreviewer < …::VideoPreviewer`
+    # (and `config.active_storage.previewers` identity checks against
+    # that constant) resolve. Poster drawing on this runtime goes
+    # through `Previewer.poster`, not the Rails instance `capture` path.
+    class VideoPreviewer < Previewer
     end
   end
 
@@ -1231,8 +1264,14 @@ module ActiveStorage
     # first. Rails detaches the old blob and leaves it for a purge job;
     # there is no job here and an orphaned blob row would make
     # `attached?` answer for a file no longer attached, so the row and
-    # its bytes go with it.
+    # its bytes go with it — except when `blob` is ALREADY attached:
+    # re-attaching the same Blob must not purge its bytes.
     def attach_blob(blob)
+      load_row
+      current = @blob
+      if !(current.nil?) && current.id == blob.id
+        return nil
+      end
       purge
       ActiveRecord.adapter.insert("active_storage_attachments", {
         "name" => @name,

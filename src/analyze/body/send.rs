@@ -1125,14 +1125,32 @@ impl<'a> BodyTyper<'a> {
                     };
                     // The class object and its instances share this one type, so a
                     // name both sides define is ambiguous. The catalog gives every model
-                    // the relation builders (`order`, `group`, `limit`, ...) class-side;
-                    // `belongs_to :order` gives an instance the reader `order`. A relation
-                    // builder called with no arguments is not a query (`Refund.order` is an
-                    // error), so the zero-argument call is the instance reader.
+                    // the relation builders (`order`, `group`, `limit`, `page`, …)
+                    // class-side; an instance may own the same name as a reader
+                    // (`belongs_to :order`, `delegated_type` singular `page`, …).
+                    // A relation builder called with no arguments is not a useful
+                    // query shape here (`Refund.order` is an error; bare
+                    // `leaf.page` is the delegated_type reader, not
+                    // `Relation[Leaf]`), so the zero-argument call is the
+                    // instance reader. Callers that want the builder pass an
+                    // argument (`Model.page(2)`, `Model.order(:name)`).
                     if call_args.is_empty()
                         && matches!(
                             method.as_str(),
-                            "order" | "group" | "limit" | "offset" | "having" | "joins" | "includes" | "select" | "distinct"
+                            "order"
+                                | "group"
+                                | "limit"
+                                | "offset"
+                                | "having"
+                                | "joins"
+                                | "includes"
+                                | "select"
+                                | "distinct"
+                                | "page"
+                                | "per"
+                                | "paginate"
+                                | "padding"
+                                | "without_count"
                         )
                     {
                         if let (Some(cm), Some(im)) =
@@ -1471,6 +1489,17 @@ impl<'a> BodyTyper<'a> {
                 // An initial value decides the result type (`[1, 2].sum(0.0)` is a Float).
                 if method.as_str() == "sum" && !args.is_empty() {
                     return Ty::Untyped;
+                }
+                // `[] + [h]` is an Array of `h`: when the receiver's
+                // element is empty or not yet known, `+`, `|` and
+                // `concat` take the argument's. A known receiver element
+                // keeps answering for the result, as before.
+                if let ("+" | "|" | "concat", [other]) = (method.as_str(), args) {
+                    if let (Ty::Var { .. } | Ty::Bottom, Some(Ty::Array { elem: other })) =
+                        (elem, &other.ty)
+                    {
+                        return Ty::Array { elem: other.clone() };
+                    }
                 }
                 array_method(method, elem, block_ret)
             }
