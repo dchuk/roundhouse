@@ -5,6 +5,7 @@
 
 use super::{emit_and_run, native_http};
 
+/// Builds a real-blog probe route; `wrapping` controls ParamsWrapper.
 fn probe_app(wrapping: bool) -> emit_and_run::Overlay {
     let app = emit_and_run::real_blog()
         .edit(
@@ -28,6 +29,8 @@ fn probe_app(wrapping: bool) -> emit_and_run::Overlay {
     }
 }
 
+/// Checks the native response and decodes its JSON, including server logs
+/// in diagnostics when status or response decoding fails.
 fn decoded(response: &native_http::Response, log: &str) -> serde_json::Value {
     assert_eq!(response.status, 200, "{}\n{log}", response.body);
     serde_json::from_str(&response.body)

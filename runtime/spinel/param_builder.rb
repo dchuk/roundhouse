@@ -140,6 +140,9 @@ module ParamBuilder
     out
   end
 
+  # Convert a JSON subtree to Rails' parameter shape: stringify object
+  # keys recursively, drop nil array members, and retain nil object
+  # values, scalar leaves, and empty containers.
   def self.normalize_json(value)
     if value.is_a?(Hash)
       out = {}
