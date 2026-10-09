@@ -51,6 +51,8 @@ mod native_http;
 mod strong_params;
 #[path = "spinel_toolchain/params_wrapper.rs"]
 mod params_wrapper;
+#[path = "spinel_toolchain/json_request_values.rs"]
+mod json_request_values;
 #[path = "support/io_process_constants.rs"]
 mod io_process_constants_contract;
 #[path = "spinel_toolchain/io_process_constants.rs"]
