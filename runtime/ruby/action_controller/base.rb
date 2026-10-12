@@ -212,17 +212,13 @@ module ActionController
     found
   end
 
+  # One loop, like every helper here: two would not lower to Elixir.
   def self.flags_for(indexes, count)
     flags = []
     i = 0
     while i < count
-      flags << false
+      flags << indexes.include?(i)
       i += 1
-    end
-    k = 0
-    while k < indexes.length
-      flags[indexes[k]] = true
-      k += 1
     end
     flags
   end
