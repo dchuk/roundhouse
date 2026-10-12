@@ -115,6 +115,133 @@ module ActionController
       c == "\x1e" || c == "\x1f" || c == "\x7f"
   end
 
+  # ---- Accept negotiation (`Base#negotiate_format`'s helpers) ------------
+  #
+  # Module functions with ONE counter-stepped loop each and no early return
+  # inside it: the shape `functionalize/while_to_recursion` lowers to
+  # recursion for the Elixir library emit.
+
+  # `Request#formats` from the `Accept` header, as format names in
+  # preference order (highest q first, ties in header order). A blank
+  # header, or a browser's list that ends in or contains `*/*` beside
+  # other types (Rails' BROWSER_LIKE_ACCEPTS), is html alone. The
+  # XMLHttpRequest case (`X-Requested-With`) is not modeled.
+  def self.accepted_formats(accept)
+    return ["html"] if accept.strip.empty?
+    squeezed = accept.gsub(" ", "").gsub("\t", "")
+    return ["html"] if squeezed.include?(",*/*") || squeezed.include?("*/*,")
+    items = accept.split(",")
+    names = accept_item_names(items)
+    qs = accept_item_qs(items)
+    # An item's slot is the number of items that outrank it.
+    ranks = outranking_counts(qs)
+    ordered_non_empty(names, ranks)
+  end
+
+  def self.accept_item_names(items)
+    names = []
+    i = 0
+    while i < items.length
+      names << accept_item_name(items[i].to_s)
+      i += 1
+    end
+    names
+  end
+
+  def self.accept_item_qs(items)
+    qs = []
+    i = 0
+    while i < items.length
+      qs << accept_item_q(items[i].to_s)
+      i += 1
+    end
+    qs
+  end
+
+  def self.accept_item_name(item)
+    mime = item.split(";")[0].to_s.strip.downcase
+    return "*/*" if mime == "*/*"
+    format_name_for_mime(mime)
+  end
+
+  # "text/vnd.turbo-stream.html" -> "turbo_stream"; "" for a type the
+  # registry does not know.
+  def self.format_name_for_mime(mime)
+    return "" unless Mime::Type.valid?(mime)
+    symbol = Mime::Type.lookup(mime).symbol
+    return "" if symbol.nil?
+    symbol.to_s
+  end
+
+  def self.accept_item_q(item)
+    parts = item.split(";")
+    given = []
+    j = 1
+    while j < parts.length
+      param = parts[j].to_s.strip
+      given << param[2, 16].to_s.to_f if param.start_with?("q=")
+      j += 1
+    end
+    return 1.0 if given.empty?
+    given[given.length - 1]
+  end
+
+  def self.outranking_counts(qs)
+    ranks = []
+    k = 0
+    while k < qs.length
+      ranks << outranking_count(qs, k)
+      k += 1
+    end
+    ranks
+  end
+
+  def self.outranking_count(qs, at)
+    outranking = []
+    j = 0
+    while j < qs.length
+      outranking << j if qs[j] > qs[at] || (qs[j] == qs[at] && j < at)
+      j += 1
+    end
+    outranking.length
+  end
+
+  # The names in rank order, unknown types (empty names) left out.
+  def self.ordered_non_empty(names, ranks)
+    ordered = []
+    r = 0
+    while r < names.length
+      name = names[rank_index(ranks, r)].to_s
+      ordered << name unless name.empty?
+      r += 1
+    end
+    ordered
+  end
+
+  def self.rank_index(ranks, rank)
+    found = []
+    j = 0
+    while j < ranks.length
+      found << j if ranks[j] == rank
+      j += 1
+    end
+    return 0 if found.empty?
+    found[0]
+  end
+
+  # The first requested format that has an arm (or a `*/*`); "" for none.
+  def self.first_requested_format(accepted, order)
+    hits = []
+    i = 0
+    while i < accepted.length
+      name = accepted[i]
+      hits << name if name == "*/*" || order.include?(name)
+      i += 1
+    end
+    return "" if hits.empty?
+    hits[0].to_s
+  end
+
   def self.sanitize_location(path)
     s = path.to_s
     if s.include?("\r") || s.include?("\n") || s.include?("\0") || s.include?("\t")
@@ -743,20 +870,13 @@ module ActionController
         return "any" if order.include?("any")
         return ""
       end
-      accepted = accepted_format_names
-      i = 0
-      while i < accepted.length
-        name = accepted[i]
-        if name == "*/*"
-          first = ""
-          first = order[0].to_s if order.length > 0
-          return first
-        end
-        return name if order.include?(name)
-        i += 1
+      first = ActionController.first_requested_format(accepted_format_names, order)
+      if first.empty?
+        return "any" if order.include?("any")
+        return ""
       end
-      return "any" if order.include?("any")
-      ""
+      return order[0].to_s if first == "*/*"
+      first
     end
 
     # What `ActionDispatch::PublicExceptions` answers for the
@@ -789,47 +909,7 @@ module ActionController
     # XMLHttpRequest case (`X-Requested-With`, which makes that list
     # trusted) is not modeled; Turbo's fetch does not send it.
     def accepted_format_names
-      accept = @accept_header
-      return ["html"] if accept.strip.empty?
-      squeezed = accept.gsub(" ", "").gsub("\t", "")
-      return ["html"] if squeezed.include?(",*/*") || squeezed.include?("*/*,")
-      # Entry 0 of each list is a sentinel (q above any real value): the
-      # insertion walk below never indexes before the start, and the
-      # lists are typed by their first element.
-      names = [""]
-      qs = [2.0]
-      accept.split(",").each do |item|
-        parts = item.split(";")
-        mime = parts[0].to_s.strip.downcase
-        name = mime
-        name = format_name_for_mime(mime) unless mime == "*/*"
-        next if name.empty?
-        q = 1.0
-        j = 1
-        while j < parts.length
-          param = parts[j].to_s.strip
-          q = param[2, param.length].to_s.to_f if param.start_with?("q=")
-          j += 1
-        end
-        # Insert after every entry whose q is at least this one's.
-        at = names.length
-        while qs[at - 1] < q
-          at -= 1
-        end
-        names.insert(at, name)
-        qs.insert(at, q)
-      end
-      names.delete_at(0)
-      names
-    end
-
-    # "text/vnd.turbo-stream.html" -> "turbo_stream"; "" when the type is
-    # not one the registry knows.
-    def format_name_for_mime(mime)
-      return "" unless Mime::Type.valid?(mime)
-      symbol = Mime::Type.lookup(mime).symbol
-      return "" if symbol.nil?
-      symbol.to_s
+      ActionController.accepted_formats(@accept_header)
     end
 
     # Rails' `request.path_parameters`: the matched route's own segments
