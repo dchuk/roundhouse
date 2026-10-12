@@ -3178,6 +3178,34 @@
     "body": "3,6"
   },
   {
+    "name": "nested_rest html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "7,14"
+  },
+  {
+    "name": "nested_rest turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "7,14"
+  },
+  {
+    "name": "nested_rest json",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "[6,7]"
+  },
+  {
+    "name": "nested_rest none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "7,14"
+  },
+  {
     "name": "nested_it html",
     "status": 200,
     "content_type": "text/html; charset=utf-8",

@@ -285,6 +285,14 @@ class ProbesController < ApplicationController
     end
   end
 
+  def nested_rest
+    @who = "nested_rest"
+    respond_to do |f|
+      f.json { render json: [1, 2].map { |x, f = 5| x + f } }
+      f.html { render html: [1, 2].map { |x, f = 7| x * f }.join(",").html_safe }
+    end
+  end
+
   def nested_it
     @who = "nested_it"
     respond_to do

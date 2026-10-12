@@ -241,8 +241,14 @@ fn rename_format_binding(block: &Expr) -> Expr {
     // { |f| f.id }`) or, in the implicit form, any nested block (its own
     // `it` / `_1` is not ours) keeps its binding.
     fn walk(e: &mut Expr, from: &Symbol, implicit: bool) {
-        if let ExprNode::Lambda { params, .. } = &*e.node {
-            if implicit || params.contains(from) {
+        if let ExprNode::Lambda { params, rest_param, extra_params, block_param, .. } = &*e.node {
+            // Any binding the nested block declares: positional, `*rest`,
+            // optional / keyword / `**kwrest`, or `&blk`.
+            let rebinds = params.contains(from)
+                || rest_param.as_ref() == Some(from)
+                || block_param.as_ref() == Some(from)
+                || extra_params.iter().any(|p| &p.name == from);
+            if implicit || rebinds {
                 return;
             }
         }
