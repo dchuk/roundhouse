@@ -416,10 +416,13 @@ module Main
 
     # The `?format=json` QUERY parameter: Rails reads `params[:format]`,
     # route and path parameters over query ones, so it pins only when
-    # nothing above did. Same literal comparisons as above.
+    # nothing above did. Same literal comparisons as above. A PRESENT but
+    # empty value still pins, to a format no template or arm answers
+    # (Rails reads `Mime[""]` as no format at all, so a `respond_to` is a
+    # 406); it is spelled "none" here since "" means unpinned.
     query_format = req.req_params.fetch("format", "").to_s
-    if explicit_format.empty? && !query_format.empty?
-      explicit_format = query_format
+    if explicit_format.empty? && req.req_params.key?("format")
+      explicit_format = query_format.empty? ? "none" : query_format
       request_format = :json if query_format == "json"
       request_format = :turbo_stream if query_format == "turbo_stream"
       request_format = :rss if query_format == "rss"

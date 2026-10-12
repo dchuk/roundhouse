@@ -195,3 +195,30 @@ fn an_unmodeled_format_arm_is_an_error() {
     );
     assert!(errors.iter().any(|e| e.contains("format.pdf")), "{errors:?}");
 }
+
+#[test]
+fn accept_parsing_is_exact_and_linear() {
+    let script = r##"
+# Exact: a late q=1 turbo item outranks 32 earlier html q=0.5 items, as in
+# Rails; unknown types and empty items change nothing.
+many = (["text/html;q=0.5"] * 32 + ["text/vnd.turbo-stream.html"] * 8).join(",")
+raise ActionController.accepted_formats(many).inspect unless ActionController.accepted_formats(many) == ["turbo_stream", "html"]
+late = (["image/png"] * 33 + ["text/html"]).join(",")
+raise "late html" unless ActionController.accepted_formats(late) == ["png", "html"]
+raise "empties" unless ActionController.accepted_formats((["" ] * 40 + ["text/html"]).join(",")) == ["html"]
+# The best item of a format counts, wherever it sits; ties keep header order.
+raise "best q" unless ActionController.accepted_formats("text/html;q=0.1, application/json;q=0.5, text/html;q=0.9") == ["html", "json"]
+raise "tie" unless ActionController.accepted_formats("application/json, text/html, application/json") == ["json", "html"]
+# A header can break across lines: `text/html,\n*/*` is a browser list.
+raise "newline" unless ActionController.accepted_formats("text/html,\n*/*") == ["html"]
+# Linear in the header, not quadratic: 210000 items answer at once.
+t = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+huge = (["text/html;q=0.5", "application/json;q=0.4", "x/y"] * 70_000).join(",")
+raise "huge" unless ActionController.accepted_formats(huge) == ["html", "json"]
+raise "slow" if Process.clock_gettime(Process::CLOCK_MONOTONIC) - t > 5
+puts "accept ok"
+"##;
+    let run = probes().run_ruby(script);
+    run.assert_passes();
+    assert!(run.stdout.contains("accept ok"), "stdout: {}", run.stdout);
+}

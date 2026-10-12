@@ -207,6 +207,32 @@ fn report_request_format_assignments(expr: &Expr) {
     walk(expr);
 }
 
+/// `respond_to do |wants| wants.html … end`: the arms are recognised by
+/// the binding being named `format`, so a block that names it otherwise
+/// has the name rewritten to `format` before anything reads the arms.
+fn rename_format_binding(block: &Expr) -> Expr {
+    let ExprNode::Lambda { params, .. } = &*block.node else { return block.clone() };
+    let Some(first) = params.first() else { return block.clone() };
+    if first.as_str() == "format" {
+        return block.clone();
+    }
+    let from = first.clone();
+    fn walk(e: &mut Expr, from: &Symbol) {
+        if let ExprNode::Var { name, .. } = &mut *e.node {
+            if name == from {
+                *name = Symbol::from("format");
+            }
+        }
+        e.node.for_each_child_mut(&mut |c| walk(c, from));
+    }
+    let mut copy = block.clone();
+    if let ExprNode::Lambda { params, body, .. } = &mut *copy.node {
+        walk(body, &from);
+        params[0] = Symbol::from("format");
+    }
+    copy
+}
+
 fn unwrap_respond_to_inner(
     expr: &Expr,
     with_format_dispatch: bool,
@@ -219,7 +245,8 @@ fn unwrap_respond_to_inner(
     // children via the generic path.
     if let ExprNode::Send { recv: None, method, block: Some(block), .. } = &*expr.node {
         if method.as_str() == "respond_to" {
-            let lambda_body = unwrap_lambda(block);
+            let renamed = rename_format_binding(block);
+            let lambda_body = unwrap_lambda(&renamed);
             if with_format_dispatch && breadth.negotiates {
                 return flatten_negotiated(lambda_body, breadth, ctx);
             }
@@ -461,13 +488,29 @@ fn flatten_negotiated(body: &Expr, breadth: FormatBreadth, ctx: ActionFormats<'_
         ExprNode::Seq { exprs } => {
             let mut arms: Vec<NegotiatedArm> = Vec::new();
             let mut other: Vec<Expr> = Vec::new();
+            let direct_arms = exprs.iter().any(|e| matches!(classify_negotiated_stmt(e, true), NegotiatedStmt::Arm(..)));
             for e in exprs {
-                match classify_negotiated_stmt(e) {
+                match classify_negotiated_stmt(e, false) {
                     NegotiatedStmt::Arm(fmt, arm_body) => {
                         register_arm(&mut arms, fmt.as_str(), arm_body, e.span)
                     }
                     NegotiatedStmt::Refused => {}
                     NegotiatedStmt::Other => other.push(recurse_outer(e)),
+                    // `if c; format.html …; else; format.html …; end` after
+                    // other statements: Rails registers whichever branch
+                    // ran, so the branch is its own negotiation, exactly as
+                    // when the `if` is the whole block.
+                    NegotiatedStmt::Branches if !direct_arms => {
+                        other.push(flatten_negotiated(e, breadth, ctx))
+                    }
+                    NegotiatedStmt::Branches => report_respond_to_error(
+                        "format.<arm>",
+                        e.span,
+                        "arms in a branch beside direct arms",
+                        "a `respond_to` block that registers arms inside an if/else AND directly \
+                         cannot be lowered: the lowering negotiates one arm set per branch"
+                            .to_string(),
+                    ),
                 }
             }
             build_negotiated_dispatch(arms, other, body.span, breadth, ctx)
@@ -480,13 +523,15 @@ fn flatten_negotiated(body: &Expr, breadth: FormatBreadth, ctx: ActionFormats<'_
                 else_branch: flatten_negotiated(else_branch, breadth, ctx),
             },
         ),
-        _ => match classify_negotiated_stmt(body) {
+        _ => match classify_negotiated_stmt(body, false) {
             NegotiatedStmt::Arm(fmt, arm_body) => {
                 let mut arms = Vec::new();
                 register_arm(&mut arms, fmt.as_str(), arm_body, body.span);
                 build_negotiated_dispatch(arms, Vec::new(), body.span, breadth, ctx)
             }
-            NegotiatedStmt::Refused => Expr::new(body.span, ExprNode::Seq { exprs: vec![] }),
+            NegotiatedStmt::Refused | NegotiatedStmt::Branches => {
+                Expr::new(body.span, ExprNode::Seq { exprs: vec![] })
+            }
             NegotiatedStmt::Other => recurse_outer(body),
         },
     }
@@ -500,6 +545,8 @@ enum NegotiatedStmt {
     Refused,
     /// Anything else: ordinary code that runs before negotiation.
     Other,
+    /// An `if`/`else` whose both branches register arms.
+    Branches,
 }
 
 /// `classify_format_stmt`, plus the registrations that look like arms
@@ -508,16 +555,18 @@ enum NegotiatedStmt {
 /// arm registered conditionally (`format.json { … } if cond`, or inside
 /// any other construct), which would otherwise be emitted verbatim with
 /// `format` unbound. Both are errors, never silent.
-fn classify_negotiated_stmt(e: &Expr) -> NegotiatedStmt {
+fn classify_negotiated_stmt(e: &Expr, quiet: bool) -> NegotiatedStmt {
     if let ExprNode::Send { recv: Some(recv), method, args, .. } = &*e.node {
         if is_format_binding(recv) {
             if method.as_str() == "any" && !args.is_empty() {
-                report_unrunnable_arm(
+                if !quiet {
+                    report_unrunnable_arm(
                     "any",
                     e.span,
                     "a mime list (`format.any(:json, :turbo_stream)`) would be dropped, and the \
                      arm would answer formats it never named",
                 );
+                }
                 return NegotiatedStmt::Refused;
             }
             if let Some((fmt, body)) = classify_format_stmt(e) {
@@ -526,6 +575,14 @@ fn classify_negotiated_stmt(e: &Expr) -> NegotiatedStmt {
         }
     }
     if mentions_format_binding(e) {
+        if let ExprNode::If { then_branch, else_branch, .. } = &*e.node {
+            if mentions_format_binding(then_branch) && mentions_format_binding(else_branch) {
+                return NegotiatedStmt::Branches;
+            }
+        }
+        if quiet {
+            return NegotiatedStmt::Refused;
+        }
         report_respond_to_error(
             "format.<arm>",
             e.span,
@@ -697,7 +754,7 @@ fn lower_negotiated_arm(arm: &NegotiatedArm, breadth: FormatBreadth, ctx: Action
             // performed nothing, so Rails' `default_render` renders the
             // action's turbo_stream template after it.
             match implicit_template_arm("turbo_stream", arm.span, ctx) {
-                Some(render) => ArmOutcome::Body(append_statement(&marked, render)),
+                Some(render) => ArmOutcome::Body(guarded_default_render(&marked, render, arm.span)),
                 None => ArmOutcome::Refused,
             }
         }
@@ -746,28 +803,34 @@ fn html_arm_body(lowered: &Expr, bare: bool, span: Span, ctx: ActionFormats<'_>)
     if bare {
         return default;
     }
-    let default = if contains_terminal(lowered) {
-        Expr::new(
-            span,
-            ExprNode::If {
-                cond: Expr::new(
-                    span,
-                    ExprNode::Send {
-                        recv: None,
-                        method: Symbol::from("performed?"),
-                        args: Vec::new(),
-                        block: None,
-                        parenthesized: false,
-                    },
-                ),
-                then_branch: Expr::new(span, ExprNode::Lit { value: Literal::Nil }),
-                else_branch: default,
-            },
-        )
-    } else {
-        default
-    };
-    append_statement(lowered, default)
+    guarded_default_render(lowered, default, span)
+}
+
+/// `<lowered>; render <default> unless performed?`: the arm's default
+/// render, after whatever the block did. ALWAYS guarded: a block that
+/// shows no render or redirect of its own may still call a helper that
+/// responds (`format.html { fail_it }` with `fail_it` rendering), and a
+/// syntactic search cannot see into the callee. Rails' own default
+/// render is `performed?`, not syntax.
+fn guarded_default_render(lowered: &Expr, default: Expr, span: Span) -> Expr {
+    let guarded = Expr::new(
+        span,
+        ExprNode::If {
+            cond: Expr::new(
+                span,
+                ExprNode::Send {
+                    recv: None,
+                    method: Symbol::from("performed?"),
+                    args: Vec::new(),
+                    block: None,
+                    parenthesized: false,
+                },
+            ),
+            then_branch: Expr::new(span, ExprNode::Lit { value: Literal::Nil }),
+            else_branch: default,
+        },
+    );
+    append_statement(lowered, guarded)
 }
 
 /// `render :<action>, format: :<fmt>` for an arm with no body of its

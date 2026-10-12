@@ -13,6 +13,11 @@ module ActionController
   def self.expand_trailing_stars: (Array[String] items) -> Array[String]
   def self.star_items: (Array[String] mimes, String rest) -> Array[String]
   def self.trailing_star_mimes: (String item) -> Array[String]
+  def self.best_item_flags: (Array[String] names, Array[Float] qs) -> Array[bool]
+  def self.best_slot: (Array[String] names, Array[Integer] best, String name) -> Integer
+  def self.flags_for: (Array[Integer] indexes, Integer count) -> Array[bool]
+  def self.flagged_names: (Array[String] names, Array[bool] flags) -> Array[String]
+  def self.flagged_qs: (Array[Float] qs, Array[bool] flags) -> Array[Float]
   def self.accept_item_names: (Array[String] items) -> Array[String]
   def self.accept_item_qs: (Array[String] items) -> Array[Float]
   def self.accept_item_name: (String item) -> String

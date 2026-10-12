@@ -126,13 +126,26 @@ module ActionController
   # header, or a browser's list that ends in or contains `*/*` beside
   # other types (Rails' BROWSER_LIKE_ACCEPTS), is html alone. The
   # XMLHttpRequest case (`X-Requested-With`) is not modeled.
+  #
+  # Cost: ranking is quadratic in the item count (an item's slot counts
+  # the items that outrank it), and a header's item count is the
+  # client's to choose. So ranking runs on the DISTINCT recognised
+  # formats only, never on the raw items: items of an unregistered type,
+  # and every item but the best one of a format (highest q, earliest on
+  # a tie), cannot change which format comes first, so dropping them
+  # changes no outcome. That leaves at most one item per registered
+  # format plus `*/*` (about forty), however long the header, and every
+  # earlier step is linear. Rails ranks them all and gets the same order.
   def self.accepted_formats(accept)
     return ["html"] if accept.strip.empty?
-    squeezed = accept.gsub(" ", "").gsub("\t", "")
+    squeezed = accept.gsub(" ", "").gsub("\t", "").gsub("\n", "").gsub("\r", "")
     return ["html"] if squeezed.include?(",*/*") || squeezed.include?("*/*,")
     items = expand_trailing_stars(accept.split(","))
-    names = accept_item_names(items)
-    qs = accept_item_qs(items)
+    all_names = accept_item_names(items)
+    all_qs = accept_item_qs(items)
+    keep = best_item_flags(all_names, all_qs)
+    names = flagged_names(all_names, keep)
+    qs = flagged_qs(all_qs, keep)
     # An item's slot is the number of items that outrank it.
     ranks = outranking_counts(qs)
     ordered_non_empty(names, ranks)
@@ -167,6 +180,71 @@ module ActionController
       j += 1
     end
     items
+  end
+
+  # One flag per item: true for the best item of each recognised format.
+  def self.best_item_flags(names, qs)
+    best = []
+    i = 0
+    while i < names.length
+      name = names[i].to_s
+      if !name.empty?
+        slot = best_slot(names, best, name)
+        if slot < 0
+          best << i
+        elsif qs[i] > qs[best[slot]]
+          best[slot] = i
+        end
+      end
+      i += 1
+    end
+    flags_for(best, names.length)
+  end
+
+  # Where in `best` the item for `name` sits, or -1.
+  def self.best_slot(names, best, name)
+    found = -1
+    k = 0
+    while k < best.length
+      found = k if names[best[k]] == name && found < 0
+      k += 1
+    end
+    found
+  end
+
+  def self.flags_for(indexes, count)
+    flags = []
+    i = 0
+    while i < count
+      flags << false
+      i += 1
+    end
+    k = 0
+    while k < indexes.length
+      flags[indexes[k]] = true
+      k += 1
+    end
+    flags
+  end
+
+  def self.flagged_names(names, flags)
+    out = []
+    i = 0
+    while i < names.length
+      out << names[i] if flags[i]
+      i += 1
+    end
+    out
+  end
+
+  def self.flagged_qs(qs, flags)
+    out = []
+    i = 0
+    while i < qs.length
+      out << qs[i] if flags[i]
+      i += 1
+    end
+    out
   end
 
   # The mime types `Mime::Type.parse("<prefix>/*")` answers under
