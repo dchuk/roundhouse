@@ -293,6 +293,14 @@ class ProbesController < ApplicationController
     end
   end
 
+  def assign_param
+    @who = "assign_param"
+    respond_to do |f|
+      f.html { f = "hello"; render html: f }
+      f.json { render json: { a: 1 } }
+    end
+  end
+
   def nested_it
     @who = "nested_it"
     respond_to do

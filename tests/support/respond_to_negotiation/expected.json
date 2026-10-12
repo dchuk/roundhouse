@@ -3206,6 +3206,34 @@
     "body": "7,14"
   },
   {
+    "name": "assign_param html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "hello"
+  },
+  {
+    "name": "assign_param turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "hello"
+  },
+  {
+    "name": "assign_param json",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "{\"a\":1}"
+  },
+  {
+    "name": "assign_param none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "hello"
+  },
+  {
     "name": "nested_it html",
     "status": 200,
     "content_type": "text/html; charset=utf-8",

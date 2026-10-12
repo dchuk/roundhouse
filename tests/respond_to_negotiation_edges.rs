@@ -17,7 +17,7 @@ const ACTIONS: &[&str] = &[
     "html_early_return", "html_rescue", "html_status", "pre_assign", "seq_if", "top_if", "wants_param",
     "multi_turbo", "three", "json_only", "html_only", "plain_two", "send_arm", "rescue_render",
     "shadow_local", "numbered", "it_param", "branch_diff", "top_branch_diff", "if_noelse",
-    "seq_if_noelse", "else_other_stmt", "any_two", "nested_named", "nested_rest", "nested_it",
+    "seq_if_noelse", "else_other_stmt", "any_two", "nested_named", "nested_rest", "assign_param", "nested_it",
 ];
 
 fn view(rel: &str) -> String {
@@ -67,15 +67,17 @@ REQS.each do |name, path, accept, extra|
   got = begin
     Main.run(env, StringIO.new(""), out)
     head, body = out.string.split("\r\n\r\n", 2)
-    { "status" => head[/^Status: (\d+)/, 1].to_i, "content_type" => head[/^Content-Type: (.*?)\r?$/i, 1], "body" => body.to_s }
+    { "status" => head[/^Status: (\d+)/, 1].to_i, "content_type" => head[/^Content-Type: (.*?)\r?$/i, 1], "location" => head[/^Location: (.*?)\r?$/i, 1], "body" => body.to_s }
   rescue Exception => e
-    { "status" => -1, "content_type" => nil, "body" => "RAISED #{e.class}: #{e.message[0, 80]}" }
+    { "status" => -1, "content_type" => nil, "location" => nil, "body" => "RAISED #{e.class}: #{e.message[0, 80]}" }
   end
   dt = Process.clock_gettime(Process::CLOCK_MONOTONIC) - s
   slow << "#{name} #{dt.round(2)}s" if dt > 5.0
-  want = { "status" => row["status"], "content_type" => row["content_type"], "body" => row["body"] }
+  want = { "status" => row["status"], "content_type" => row["content_type"], "location" => row["location"], "body" => row["body"] }
   # Out of scope: the body of a redirect (ours is Rack's link, Rails sends none).
-  norm = ->(h) { h.merge("content_type" => h["content_type"].to_s.downcase.delete(" "), "body" => h["status"].between?(300, 399) ? "" : h["body"]) }
+  # The redirect destination is compared by path: Rails answers an absolute
+  # URL on the test host, the emitted app the path it was given.
+  norm = ->(h) { h.merge("content_type" => h["content_type"].to_s.downcase.delete(" "), "location" => h["location"]&.sub(%r{\Ahttps?://[^/]+}, ""), "body" => h["status"].between?(300, 399) ? "" : h["body"]) }
   failures << "DIFF #{name}\n  rails: #{want.inspect[0, 200]}\n  ours : #{got.inspect[0, 200]}" unless norm.(got) == norm.(want)
 end
 puts failures.join("\n")
@@ -166,5 +168,5 @@ fn bare_format_any_renders_the_negotiated_template() {
 /// binding.
 #[test]
 fn nested_blocks_keep_their_own_parameter() {
-    replay(&["nested_named ", "nested_rest ", "nested_it "]);
+    replay(&["nested_named ", "nested_rest ", "assign_param ", "nested_it "]);
 }

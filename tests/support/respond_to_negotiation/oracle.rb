@@ -8,7 +8,7 @@ require "rack/mock"
 require "json"
 HERE = __dir__
 require File.join(HERE, "reqs")
-ACTIONS = %w[html_helper html_helper_redirect html_cond_redirect html_cond_head html_unless_render html_early_return html_rescue html_status pre_assign seq_if top_if wants_param multi_turbo three json_only html_only plain_two send_arm rescue_render shadow_local numbered it_param branch_diff top_branch_diff if_noelse seq_if_noelse else_other_stmt any_two nested_named nested_rest nested_it]
+ACTIONS = %w[html_helper html_helper_redirect html_cond_redirect html_cond_head html_unless_render html_early_return html_rescue html_status pre_assign seq_if top_if wants_param multi_turbo three json_only html_only plain_two send_arm rescue_render shadow_local numbered it_param branch_diff top_branch_diff if_noelse seq_if_noelse else_other_stmt any_two nested_named nested_rest assign_param nested_it]
 class OracleApp < Rails::Application
   config.root = HERE
   config.eager_load = false

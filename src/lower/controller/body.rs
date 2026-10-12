@@ -256,6 +256,17 @@ fn rename_format_binding(block: &Expr) -> Expr {
             rename(e);
             return;
         }
+        // A write to the binding (`f = "x"` / `f ||= …` inside an arm)
+        // is renamed with its reads, so both name the same local.
+        if !implicit {
+            if let ExprNode::Assign { target: LValue::Var { name, .. }, .. }
+            | ExprNode::OpAssign { target: LValue::Var { name, .. }, .. } = &mut *e.node
+            {
+                if name == from {
+                    *name = Symbol::from("format");
+                }
+            }
+        }
         let arm_call = matches!(&*e.node, ExprNode::Send { recv: Some(r), .. } if is_binding(r, from, implicit));
         if arm_call {
             if let ExprNode::Send { recv: Some(r), args, block, .. } = &mut *e.node {
