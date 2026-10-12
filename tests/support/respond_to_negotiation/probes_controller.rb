@@ -267,6 +267,32 @@ class ProbesController < ApplicationController
     end
   end
 
+  # bare format.any with both an html and a turbo_stream template
+  def any_two
+    @who = "any_two"
+    respond_to do |format|
+      format.json { render json: { a: 1 } }
+      format.any
+    end
+  end
+
+  # nested blocks inside arms that read like the block parameter
+  def nested_named
+    @who = "nested_named"
+    respond_to do |f|
+      f.json { render json: [1, 2].map { |f| f * 2 } }
+      f.html { render html: [1, 2].map { |f| f * 3 }.join(",").html_safe }
+    end
+  end
+
+  def nested_it
+    @who = "nested_it"
+    respond_to do
+      it.json { render json: [1, 2].map { it * 2 } }
+      it.html { render html: [1, 2].map { it * 3 }.join(",").html_safe }
+    end
+  end
+
   private
 
   def fail_it

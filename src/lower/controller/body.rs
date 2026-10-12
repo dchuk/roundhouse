@@ -220,19 +220,52 @@ fn rename_format_binding(block: &Expr) -> Expr {
         Some(first) => first.clone(),
         None => Symbol::from(""),
     };
-    fn walk(e: &mut Expr, from: &Symbol, implicit: bool) {
-        let is_name = |n: &Symbol| {
-            if implicit { matches!(n.as_str(), "_1" | "it") } else { n == from }
-        };
-        let rename = match &*e.node {
-            ExprNode::Var { name, .. } => is_name(name),
+    // The binding as the arm calls read it: `f` / `wants`, or the implicit
+    // `_1` / `it` (a bare send, no receiver, no arguments).
+    fn is_binding(e: &Expr, from: &Symbol, implicit: bool) -> bool {
+        match &*e.node {
+            ExprNode::Var { name, .. } => {
+                if implicit { matches!(name.as_str(), "_1" | "it") } else { name == from }
+            }
             ExprNode::Send { recv: None, method, args, block, .. } => {
-                implicit && args.is_empty() && block.is_none() && is_name(method)
+                implicit && args.is_empty() && block.is_none() && matches!(method.as_str(), "_1" | "it")
             }
             _ => false,
-        };
-        if rename {
-            *e.node = ExprNode::Var { id: crate::ident::VarId(0), name: Symbol::from("format") };
+        }
+    }
+    fn rename(e: &mut Expr) {
+        *e.node = ExprNode::Var { id: crate::ident::VarId(0), name: Symbol::from("format") };
+    }
+    // Only the arm calls (`f.html { … }`) and their bodies are rewritten.
+    // A block nested inside an arm that declares the same name (`rows.map
+    // { |f| f.id }`) or, in the implicit form, any nested block (its own
+    // `it` / `_1` is not ours) keeps its binding.
+    fn walk(e: &mut Expr, from: &Symbol, implicit: bool) {
+        if let ExprNode::Lambda { params, .. } = &*e.node {
+            if implicit || params.contains(from) {
+                return;
+            }
+        }
+        if is_binding(e, from, implicit) {
+            rename(e);
+            return;
+        }
+        let arm_call = matches!(&*e.node, ExprNode::Send { recv: Some(r), .. } if is_binding(r, from, implicit));
+        if arm_call {
+            if let ExprNode::Send { recv: Some(r), args, block, .. } = &mut *e.node {
+                rename(r);
+                for a in args.iter_mut() {
+                    walk(a, from, implicit);
+                }
+                if let Some(blk) = block {
+                    // The arm's own block: its body, not the Lambda node.
+                    if let ExprNode::Lambda { body, .. } = &mut *blk.node {
+                        walk(body, from, implicit);
+                    } else {
+                        walk(blk, from, implicit);
+                    }
+                }
+            }
             return;
         }
         e.node.for_each_child_mut(&mut |c| walk(c, from, implicit));

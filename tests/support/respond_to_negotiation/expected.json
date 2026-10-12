@@ -3120,5 +3120,89 @@
     "content_type": "text/html; charset=utf-8",
     "location": null,
     "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "any_two html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=any_two</p>\n"
+  },
+  {
+    "name": "any_two turbo",
+    "status": 200,
+    "content_type": "text/vnd.turbo-stream.html; charset=utf-8",
+    "location": null,
+    "body": "<turbo-stream action=\"update\" target=\"f\"><template>turbo=any_two</template></turbo-stream>\n"
+  },
+  {
+    "name": "any_two json",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "{\"a\":1}"
+  },
+  {
+    "name": "any_two none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=any_two</p>\n"
+  },
+  {
+    "name": "nested_named html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "3,6"
+  },
+  {
+    "name": "nested_named turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "3,6"
+  },
+  {
+    "name": "nested_named json",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "[2,4]"
+  },
+  {
+    "name": "nested_named none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "3,6"
+  },
+  {
+    "name": "nested_it html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "3,6"
+  },
+  {
+    "name": "nested_it turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "3,6"
+  },
+  {
+    "name": "nested_it json",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "[2,4]"
+  },
+  {
+    "name": "nested_it none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "3,6"
   }
 ]
