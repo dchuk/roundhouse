@@ -968,7 +968,7 @@ module ActionController
     # format its URL PINS ("" when it pins none): a `.json` suffix, a
     # `(.:format)` segment, a route's `format:` default. The dispatchers
     # set both; `negotiate_format` is the only reader.
-    attr_accessor :accept_header
+    attr_reader :accept_header
     attr_accessor :explicit_format
     # Rails' `ActionController::MimeResponds#respond_to` selection, for
     # the arms the lowering registered (`order`, in source order, as
@@ -1033,8 +1033,21 @@ module ActionController
     # other types (Rails' BROWSER_LIKE_ACCEPTS), is html alone. The
     # XMLHttpRequest case (`X-Requested-With`, which makes that list
     # trusted) is not modeled; Turbo's fetch does not send it.
+    #
+    # Parsed once per request: `negotiate_format` runs once per
+    # `respond_to` and per implicit render, and the parse is the costly
+    # part. `accept_header=` drops the memo.
     def accepted_format_names
-      ActionController.accepted_formats(@accept_header)
+      names = @accepted_format_names
+      return names unless names.nil?
+      parsed = ActionController.accepted_formats(@accept_header)
+      @accepted_format_names = parsed
+      parsed
+    end
+
+    def accept_header=(value)
+      @accepted_format_names = nil
+      @accept_header = value
     end
 
     # Rails' `request.path_parameters`: the matched route's own segments
@@ -1091,6 +1104,7 @@ module ActionController
       @query_string = +""
       @accepts_any_format = false
       @accept_header = +""
+      @accepted_format_names = nil
       @explicit_format = +""
       @content_type = "text/html; charset=utf-8"
       @content_type_explicit = false

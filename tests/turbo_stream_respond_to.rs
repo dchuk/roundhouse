@@ -234,3 +234,21 @@ puts "accept ok"
     run.assert_passes();
     assert!(run.stdout.contains("accept ok"), "stdout: {}", run.stdout);
 }
+
+#[test]
+fn accept_parsing_is_memoized_per_request() {
+    let script = r##"
+c = ActionController::Base.new
+c.accept_header = "text/html"
+first = c.accepted_format_names
+raise "not memoized" unless c.accepted_format_names.equal?(first)
+c.accept_header = "text/vnd.turbo-stream.html"
+raise "stale memo" unless c.accepted_format_names == ["turbo_stream"]
+other = ActionController::Base.new
+raise "memo leaked across requests" unless other.accepted_format_names == ["html"]
+puts "accept ok"
+"##;
+    let run = probes().run_ruby(script);
+    run.assert_passes();
+    assert!(run.stdout.contains("accept ok"), "stdout: {}", run.stdout);
+}

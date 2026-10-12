@@ -158,7 +158,7 @@ module ActionController
     def accepts_any_format: () -> bool
     def accepts_any_format=: (bool) -> bool
     def accept_header: () -> String
-    def accept_header=: (String) -> String
+    def accept_header=: (String value) -> String
     def explicit_format: () -> String
     def explicit_format=: (String) -> String
     def negotiate_format: (Array[String] order) -> String
@@ -171,6 +171,7 @@ module ActionController
     @headers: ActionController::HeaderStore
     @content_type_explicit: bool
     @accept_header: String
+    @accepted_format_names: Array[String]?
     @explicit_format: String
     @head_response: bool
     @cache_control: ActionController::CacheControlStore
