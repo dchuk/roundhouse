@@ -51,10 +51,9 @@ pub struct ActionFormats<'a> {
     /// `controller_to_library` scans them: `json`, `turbo_stream`, `js`.
     pub variants: &'a [&'a str],
     /// The action has an html template. A bare `format.html` then renders
-    /// it explicitly: the implicit render behind the arm chain tests
-    /// `request_format` over every template that exists, and would pick
-    /// the turbo_stream one for an `Accept` that lists it, whichever arm
-    /// negotiation ran.
+    /// it explicitly: the implicit render behind the arm chain negotiates
+    /// over every template that exists, and would pick the turbo_stream one
+    /// for an `Accept` that lists it first, whichever arm ran.
     pub html_template: bool,
 }
 
@@ -1556,7 +1555,7 @@ fn add_format_kwarg(args: &[Expr], fmt: &str, span: Span) -> Vec<Expr> {
 /// action with both a jbuilder and a `.turbo_stream.erb` template gets
 /// both. Empty means html only.
 pub fn synthesize_implicit_render(body: &Expr, action_name: &str, variants: &[&str]) -> Expr {
-    synthesize_implicit_render_with_html(body, action_name, variants, true, true)
+    synthesize_implicit_render_with_html(body, action_name, variants, true, true, false)
 }
 
 /// `html_template_exists = false` makes the HTML fallback `head
@@ -1577,25 +1576,14 @@ pub fn synthesize_implicit_render_with_html(
     variants: &[&str],
     html_template_exists: bool,
     html_exists: bool,
+    negotiate: bool,
 ) -> Expr {
     if has_toplevel_terminal(body) {
         return body.clone();
     }
-    // Build the chain inside-out so the FIRST variant ends up as the
-    // outermost test.
-    let mut terminal =
-        html_fallback(action_name, body.span, variants, html_template_exists, html_exists);
-    for fmt in variants.iter().rev() {
-        let branch = mark_render_format(&render_symbol_send(action_name, body.span), fmt);
-        terminal = Expr::new(
-            body.span,
-            ExprNode::If {
-                cond: request_format_eq(body.span, fmt),
-                then_branch: branch,
-                else_branch: terminal,
-            },
-        );
-    }
+    let mut terminal = implicit_terminal(
+        action_name, body.span, variants, html_template_exists, html_exists, negotiate,
+    );
     // A body with SOME response terminal that isn't guaranteed at top
     // level (a render inside begin/rescue, or behind a condition the
     // detector can't prove) may already have responded by the time the
@@ -1625,6 +1613,74 @@ pub fn synthesize_implicit_render_with_html(
         terminal
     };
     append_statement(body, terminal)
+}
+
+/// The format choice of an implicit render: the chain that renders
+/// `<action>.<fmt>` for the format the request negotiated.
+///
+/// `negotiate` (ruby-family trees): Rails' `default_render` hands the
+/// template lookup `request.formats`, and the first requested format with
+/// a template wins, so this is `negotiate_format` over the templates that
+/// EXIST, in the order a bare `*/*` expands to (html, js, json,
+/// turbo_stream: Mime registration order). A request none of them answers
+/// is `UnknownFormat` (406) when the action has some template, and
+/// `head :no_content` when it has none. Measured in
+/// `tests/support/turbo_respond_to` (the `plain_*` probes). The
+/// dispatcher's `request_format` Accept sniff is NOT consulted.
+///
+/// Otherwise (trees without `negotiate_format`, and callers that know no
+/// template set) the legacy `request_format` chain stands.
+fn implicit_terminal(
+    action_name: &str,
+    span: Span,
+    variants: &[&str],
+    any_template_exists: bool,
+    html_exists: bool,
+    negotiate: bool,
+) -> Expr {
+    if !negotiate {
+        let mut terminal = html_fallback(action_name, span, variants, any_template_exists, html_exists);
+        for fmt in variants.iter().rev() {
+            let branch = mark_render_format(&render_symbol_send(action_name, span), fmt);
+            terminal = Expr::new(
+                span,
+                ExprNode::If {
+                    cond: request_format_eq(span, fmt),
+                    then_branch: branch,
+                    else_branch: terminal,
+                },
+            );
+        }
+        return terminal;
+    }
+    let mut order: Vec<&str> = Vec::new();
+    if html_exists {
+        order.push("html");
+    }
+    for fmt in ["js", "json", "turbo_stream"] {
+        if variants.contains(&fmt) {
+            order.push(fmt);
+        }
+    }
+    if order.is_empty() {
+        // "No template found": a POST answers 204.
+        return head_no_content(span);
+    }
+    let order_owned: Vec<String> = order.iter().map(|f| f.to_string()).collect();
+    let mut terminal = raise_unknown_format(span);
+    for fmt in order.iter().rev() {
+        let render = render_symbol_send(action_name, span);
+        let branch = if *fmt == "html" { render } else { mark_render_format(&render, fmt) };
+        terminal = Expr::new(
+            span,
+            ExprNode::If {
+                cond: negotiated_format_is(span, &order_owned, fmt),
+                then_branch: branch,
+                else_branch: terminal,
+            },
+        );
+    }
+    terminal
 }
 
 /// What the implicit render does when no variant arm matched — the
@@ -1710,8 +1766,11 @@ pub fn synthesize_deferred_implicit_render(
     variants: &[&str],
     html_template_exists: bool,
     html_exists: bool,
+    negotiate: bool,
 ) -> Expr {
-    match implicit_render_statement(body, action_name, variants, html_template_exists, html_exists) {
+    match implicit_render_statement(
+        body, action_name, variants, html_template_exists, html_exists, negotiate,
+    ) {
         Some(tail) => append_statement(body, tail),
         None => body.clone(),
     }
@@ -1723,23 +1782,14 @@ pub fn implicit_render_statement(
     variants: &[&str],
     html_template_exists: bool,
     html_exists: bool,
+    negotiate: bool,
 ) -> Option<Expr> {
     if has_toplevel_terminal(body) {
         return None;
     }
-    let mut terminal =
-        html_fallback(action_name, body.span, variants, html_template_exists, html_exists);
-    for fmt in variants.iter().rev() {
-        let branch = mark_render_format(&render_symbol_send(action_name, body.span), fmt);
-        terminal = Expr::new(
-            body.span,
-            ExprNode::If {
-                cond: request_format_eq(body.span, fmt),
-                then_branch: branch,
-                else_branch: terminal,
-            },
-        );
-    }
+    let terminal = implicit_terminal(
+        action_name, body.span, variants, html_template_exists, html_exists, negotiate,
+    );
     Some(Expr::new(
         body.span,
         ExprNode::If {
