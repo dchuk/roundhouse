@@ -1017,7 +1017,7 @@ fn is_inline_primitive_json_render(body: &Expr) -> bool {
 }
 
 /// `negotiate_format(["a", "b"]) == "<fmt>"`; with `template`, the
-/// implicit render's variant, `negotiate_format(["a", "b"], true)`, which
+/// implicit render's variant, `negotiate_template_format(["a", "b"])`, which
 /// reads a pinned format no template could carry the way Rails' template
 /// lookup does (see `Base#negotiate_format`).
 fn negotiated_format_is(span: Span, order: &[String], fmt: &str, template: bool) -> Expr {
@@ -1026,18 +1026,15 @@ fn negotiated_format_is(span: Span, order: &[String], fmt: &str, template: bool)
         span,
         ExprNode::Send {
             recv: None,
-            method: Symbol::from("negotiate_format"),
+            method: Symbol::from(if template { "negotiate_template_format" } else { "negotiate_format" }),
             args: {
-                let mut args = vec![Expr::new(
+                let args = vec![Expr::new(
                     span,
                     ExprNode::Array {
                         elements: order.iter().map(|f| str_lit(f)).collect(),
                         style: crate::expr::ArrayStyle::Brackets,
                     },
                 )];
-                if template {
-                    args.push(Expr::new(span, ExprNode::Lit { value: Literal::Bool { value: true } }));
-                }
                 args
             },
             block: None,

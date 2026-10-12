@@ -161,7 +161,9 @@ module ActionController
     def accept_header=: (String value) -> String
     def explicit_format: () -> String
     def explicit_format=: (String) -> String
-    def negotiate_format: (Array[String] order, ?bool template) -> String
+    def negotiate_format: (Array[String] order) -> String
+    def negotiate_template_format: (Array[String] order) -> String
+    def negotiate_in: (Array[String] order, bool template) -> String
     def accepted_format_names: () -> Array[String]
     def unacceptable_requested_json?: () -> bool
     def unacceptable_body: () -> String

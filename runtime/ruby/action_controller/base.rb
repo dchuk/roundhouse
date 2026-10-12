@@ -986,14 +986,25 @@ module ActionController
     #
     # A caller that only set `request_format` (the test harness) pins it.
     #
-    # `template` is the implicit render's selection (`default_render`
+    # `negotiate_template_format` is the implicit render's selection (`default_render`
     # looks a TEMPLATE up against the request's formats, where a
     # `respond_to` matches arms): a pinned format Rails' registry does not
     # know (`?format=bogus`, `JSON`, `all`, an empty value) leaves the
     # lookup unconstrained, so it takes the first template, as `*/*` does;
     # a pinned `js` falls back to html (ActionView's `formats=`). Any
     # other pinned format that has no template answers "" (406).
-    def negotiate_format(order, template = false)
+    def negotiate_format(order)
+      negotiate_in(order, false)
+    end
+
+    # The implicit render's selection (see `template` above). A separate
+    # method rather than an optional argument: Spinel resolves calls by
+    # arity and does not honour the default.
+    def negotiate_template_format(order)
+      negotiate_in(order, true)
+    end
+
+    def negotiate_in(order, template)
       pinned = @explicit_format
       if pinned.empty? && @accept_header.empty? && @request_format != :html
         pinned = @request_format.to_s
