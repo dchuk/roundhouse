@@ -3010,6 +3010,8 @@ fn lower_action_body(
         crate::lower::controller::body::ActionFormats {
             action: is_public.then_some(action_name),
             variants,
+            html_template: view_ivars
+                .contains_key(&(views_module_name(controller).unwrap_or_default(), action_name.to_string())),
         },
     );
     // `is_public` gates the SYNTHESIS — a private helper's caller does

@@ -50,10 +50,16 @@ pub struct ActionFormats<'a> {
     /// The non-html formats the action has a template for, as
     /// `controller_to_library` scans them: `json`, `turbo_stream`, `js`.
     pub variants: &'a [&'a str],
+    /// The action has an html template. A bare `format.html` then renders
+    /// it explicitly: the implicit render behind the arm chain tests
+    /// `request_format` over every template that exists, and would pick
+    /// the turbo_stream one for an `Accept` that lists it, whichever arm
+    /// negotiation ran.
+    pub html_template: bool,
 }
 
 impl ActionFormats<'static> {
-    pub const NONE: Self = Self { action: None, variants: &[] };
+    pub const NONE: Self = Self { action: None, variants: &[], html_template: false };
 }
 
 /// Which non-html `respond_to` arms an emit path can carry. The two
@@ -547,6 +553,9 @@ fn lower_negotiated_arm(arm: &NegotiatedArm, breadth: FormatBreadth, ctx: Action
         // `format.html` with no block renders the action's html template
         // through the implicit render that follows; `format.any` runs
         // whatever it was given for every format no arm above claimed.
+        "html" if bare && ctx.html_template && ctx.action.is_some() => ArmOutcome::Body(
+            render_symbol_send(ctx.action.unwrap_or_default(), arm.span),
+        ),
         "html" | "any" => ArmOutcome::Body(recurse_outer(&arm.body)),
         "json" => {
             if bare {

@@ -4,6 +4,7 @@
 # answered for exactly this controller.
 class ProbesController < ApplicationController
   skip_forgery_protection
+  layout false
 
   # html + bare turbo_stream (implicit template) + inline json
   def implicit
@@ -108,6 +109,15 @@ class ProbesController < ApplicationController
           turbo_stream.after("tip", partial: "probes/flash", locals: { msg: "tip" })
         ]
       end
+    end
+  end
+
+  # a bare html arm, with a turbo_stream template beside the html one: the
+  # arm runs html, so the template is the html one whatever Accept lists first
+  def html_bare
+    @who = "html_bare"
+    respond_to do |format|
+      format.html
     end
   end
 end

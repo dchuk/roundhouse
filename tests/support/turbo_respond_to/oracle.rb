@@ -31,7 +31,7 @@ class OracleApp < Rails::Application
     PROBES.each { |a| match "/probes/#{a}", to: "probes##{a}", via: [:get, :post] }
   end
 end
-PROBES = %w[implicit inline many head_arm render_sym after_block turbo_only turbo_first html_json any_arm inherited]
+PROBES = %w[implicit inline many head_arm render_sym after_block turbo_only turbo_first html_json any_arm inherited html_bare]
 Rails.application.initialize!
 class ApplicationController < ActionController::Base; end
 ActionController::Base.prepend_view_path(File.join(HERE, "views"))

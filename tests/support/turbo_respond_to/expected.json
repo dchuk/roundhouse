@@ -880,6 +880,86 @@
     "body": "<turbo-stream action=\"replace\" target=\"item_7\"><template><p class=\"banner\">from application</p>\n</template></turbo-stream><turbo-stream action=\"after\" target=\"tip\"><template><p class=\"flash\">tip</p>\n</template></turbo-stream>"
   },
   {
+    "name": "html_bare html",
+    "path": "/probes/html_bare",
+    "accept": "text/html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body": "<p>html=html_bare</p>\n"
+  },
+  {
+    "name": "html_bare turbo",
+    "path": "/probes/html_bare",
+    "accept": "text/vnd.turbo-stream.html, text/html, application/xhtml+xml",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body": "<p>html=html_bare</p>\n"
+  },
+  {
+    "name": "html_bare json",
+    "path": "/probes/html_bare",
+    "accept": "application/json",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "html_bare star",
+    "path": "/probes/html_bare",
+    "accept": "*/*",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body": "<p>html=html_bare</p>\n"
+  },
+  {
+    "name": "html_bare none",
+    "path": "/probes/html_bare",
+    "accept": null,
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body": "<p>html=html_bare</p>\n"
+  },
+  {
+    "name": "html_bare html_turbo",
+    "path": "/probes/html_bare",
+    "accept": "text/html, text/vnd.turbo-stream.html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body": "<p>html=html_bare</p>\n"
+  },
+  {
+    "name": "html_bare json_html",
+    "path": "/probes/html_bare",
+    "accept": "application/json, text/html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body": "<p>html=html_bare</p>\n"
+  },
+  {
+    "name": "html_bare png",
+    "path": "/probes/html_bare",
+    "accept": "image/png",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "body": ""
+  },
+  {
+    "name": "html_bare browser",
+    "path": "/probes/html_bare",
+    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body": "<p>html=html_bare</p>\n"
+  },
+  {
+    "name": "html_bare turbo_q",
+    "path": "/probes/html_bare",
+    "accept": "text/html;q=0.5, text/vnd.turbo-stream.html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body": "<p>html=html_bare</p>\n"
+  },
+  {
     "name": "implicit .json",
     "path": "/probes/implicit.json",
     "accept": "text/html",

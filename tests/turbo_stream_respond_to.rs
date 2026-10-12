@@ -40,6 +40,9 @@ const EXPECTED: &str = include_str!("support/turbo_respond_to/expected.json");
 const FLASH_PARTIAL: &str = include_str!("support/turbo_respond_to/views/probes/_flash.html.erb");
 const IMPLICIT_TEMPLATE: &str =
     include_str!("support/turbo_respond_to/views/probes/implicit.turbo_stream.erb");
+const HTML_BARE_HTML: &str = include_str!("support/turbo_respond_to/views/probes/html_bare.html.erb");
+const HTML_BARE_TURBO: &str =
+    include_str!("support/turbo_respond_to/views/probes/html_bare.turbo_stream.erb");
 const BANNER_PARTIAL: &str = include_str!("support/turbo_respond_to/views/application/_banner.html.erb");
 const AFTER_BLOCK_TEMPLATE: &str =
     include_str!("support/turbo_respond_to/views/probes/after_block.turbo_stream.erb");
@@ -47,6 +50,7 @@ const AFTER_BLOCK_TEMPLATE: &str =
 const PROBE_ACTIONS: &[&str] = &[
     "implicit", "inline", "many", "head_arm", "render_sym", "after_block", "turbo_only",
     "turbo_first", "html_json", "any_arm", "inherited",
+    "html_bare",
 ];
 
 fn routes_for(actions: &[&str]) -> String {
@@ -64,6 +68,8 @@ fn probes() -> emit_and_run::Overlay {
         .write("app/views/probes/_flash.html.erb", FLASH_PARTIAL)
         .write("app/views/application/_banner.html.erb", BANNER_PARTIAL)
         .write("app/views/probes/implicit.turbo_stream.erb", IMPLICIT_TEMPLATE)
+        .write("app/views/probes/html_bare.html.erb", HTML_BARE_HTML)
+        .write("app/views/probes/html_bare.turbo_stream.erb", HTML_BARE_TURBO)
         .write("app/views/probes/after_block.turbo_stream.erb", AFTER_BLOCK_TEMPLATE)
 }
 
@@ -104,7 +110,7 @@ fn replay_script() -> String {
 fn every_probe_answers_what_rails_answers_for_every_accept() {
     let run = probes().run_ruby(&replay_script());
     run.assert_passes();
-    assert!(run.stdout.contains("replayed 114 responses"), "stdout: {}", run.stdout);
+    assert!(run.stdout.contains("replayed 124 responses"), "stdout: {}", run.stdout);
 }
 
 #[test]
