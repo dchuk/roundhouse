@@ -2028,5 +2028,1097 @@
     "content_type": "text/vnd.turbo-stream.html; charset=utf-8",
     "location": null,
     "body": "<turbo-stream action=\"update\" target=\"f\"><template>turbo=plain_two</template></turbo-stream>\n"
+  },
+  {
+    "name": "send_arm html",
+    "status": 200,
+    "content_type": "text/plain",
+    "location": null,
+    "body": "DATA"
+  },
+  {
+    "name": "send_arm turbo",
+    "status": 200,
+    "content_type": "text/vnd.turbo-stream.html; charset=utf-8",
+    "location": null,
+    "body": "<turbo-stream action=\"update\" target=\"f\"><template>turbo=send_arm</template></turbo-stream>\n"
+  },
+  {
+    "name": "send_arm json",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "send_arm none",
+    "status": 200,
+    "content_type": "text/plain",
+    "location": null,
+    "body": "DATA"
+  },
+  {
+    "name": "rescue_render html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "rescued"
+  },
+  {
+    "name": "rescue_render turbo",
+    "status": 200,
+    "content_type": "text/vnd.turbo-stream.html; charset=utf-8",
+    "location": null,
+    "body": "<turbo-stream action=\"update\" target=\"f\"><template>turbo=rescue_render</template></turbo-stream>\n"
+  },
+  {
+    "name": "rescue_render json",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "rescue_render none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "rescued"
+  },
+  {
+    "name": "shadow_local html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "outer"
+  },
+  {
+    "name": "shadow_local turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "outer"
+  },
+  {
+    "name": "shadow_local json",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "{\"f\":\"outer\"}"
+  },
+  {
+    "name": "shadow_local none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "outer"
+  },
+  {
+    "name": "numbered html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "n"
+  },
+  {
+    "name": "numbered turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "n"
+  },
+  {
+    "name": "numbered json",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "{\"n\":1}"
+  },
+  {
+    "name": "numbered none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "n"
+  },
+  {
+    "name": "it_param html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "i"
+  },
+  {
+    "name": "it_param turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "i"
+  },
+  {
+    "name": "it_param json",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "{\"i\":1}"
+  },
+  {
+    "name": "it_param none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "i"
+  },
+  {
+    "name": "branch_diff html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "bad"
+  },
+  {
+    "name": "branch_diff ok html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "branch_diff turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "bad"
+  },
+  {
+    "name": "branch_diff ok turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "branch_diff json",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "branch_diff ok json",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "{\"ok\":true}"
+  },
+  {
+    "name": "branch_diff none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "bad"
+  },
+  {
+    "name": "branch_diff ok none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "top_branch_diff html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "bad"
+  },
+  {
+    "name": "top_branch_diff ok html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "top_branch_diff turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "bad"
+  },
+  {
+    "name": "top_branch_diff ok turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "top_branch_diff json",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "top_branch_diff ok json",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "{\"ok\":true}"
+  },
+  {
+    "name": "top_branch_diff none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "bad"
+  },
+  {
+    "name": "top_branch_diff ok none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "if_noelse html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "if_noelse ok html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "if_noelse turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "if_noelse ok turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "if_noelse json",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "if_noelse ok json",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "if_noelse none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "if_noelse ok none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "seq_if_noelse html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "seq_if_noelse ok html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "seq_if_noelse turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "seq_if_noelse ok turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "seq_if_noelse json",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "seq_if_noelse ok json",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "seq_if_noelse none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "seq_if_noelse ok none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "else_other_stmt html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "else_other_stmt ok html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "else_other_stmt turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "else_other_stmt ok turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "else_other_stmt json",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "else_other_stmt ok json",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "else_other_stmt none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "else_other_stmt ok none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "ok"
+  },
+  {
+    "name": "three .json html",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "{\"a\":1}"
+  },
+  {
+    "name": "three .json turbo",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "{\"a\":1}"
+  },
+  {
+    "name": "three .json json",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "{\"a\":1}"
+  },
+  {
+    "name": "three .json none",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "location": null,
+    "body": "{\"a\":1}"
+  },
+  {
+    "name": "three .html html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "h"
+  },
+  {
+    "name": "three .html turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "h"
+  },
+  {
+    "name": "three .html json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "h"
+  },
+  {
+    "name": "three .html none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "h"
+  },
+  {
+    "name": "three .turbo_stream html",
+    "status": 200,
+    "content_type": "text/vnd.turbo-stream.html; charset=utf-8",
+    "location": null,
+    "body": "<turbo-stream action=\"remove\" target=\"x\"></turbo-stream>"
+  },
+  {
+    "name": "three .turbo_stream turbo",
+    "status": 200,
+    "content_type": "text/vnd.turbo-stream.html; charset=utf-8",
+    "location": null,
+    "body": "<turbo-stream action=\"remove\" target=\"x\"></turbo-stream>"
+  },
+  {
+    "name": "three .turbo_stream json",
+    "status": 200,
+    "content_type": "text/vnd.turbo-stream.html; charset=utf-8",
+    "location": null,
+    "body": "<turbo-stream action=\"remove\" target=\"x\"></turbo-stream>"
+  },
+  {
+    "name": "three .turbo_stream none",
+    "status": 200,
+    "content_type": "text/vnd.turbo-stream.html; charset=utf-8",
+    "location": null,
+    "body": "<turbo-stream action=\"remove\" target=\"x\"></turbo-stream>"
+  },
+  {
+    "name": "three .bogus html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .bogus turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .bogus json",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .bogus none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .JSON html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .JSON turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .JSON json",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .JSON none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .js html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .js turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .js json",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .js none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .all html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .all turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .all json",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .all none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .text html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .text turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .text json",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .text none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .none html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .none turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .none json",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three .none none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three ?format=none html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three ?format=none turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three ?format=none json",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three ?format=none none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three ?format=NONE html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three ?format=NONE turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three ?format=NONE json",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three ?format=NONE none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three ?format= html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three ?format= turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three ?format= json",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "three ?format= none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "plain_two .json html",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "plain_two .json turbo",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "plain_two .json json",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "plain_two .json none",
+    "status": 406,
+    "content_type": "application/json; charset=UTF-8",
+    "location": null,
+    "body": "{\"status\":406,\"error\":\"Not Acceptable\"}"
+  },
+  {
+    "name": "plain_two .html html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .html turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .html json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .html none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .turbo_stream html",
+    "status": 200,
+    "content_type": "text/vnd.turbo-stream.html; charset=utf-8",
+    "location": null,
+    "body": "<turbo-stream action=\"update\" target=\"f\"><template>turbo=plain_two</template></turbo-stream>\n"
+  },
+  {
+    "name": "plain_two .turbo_stream turbo",
+    "status": 200,
+    "content_type": "text/vnd.turbo-stream.html; charset=utf-8",
+    "location": null,
+    "body": "<turbo-stream action=\"update\" target=\"f\"><template>turbo=plain_two</template></turbo-stream>\n"
+  },
+  {
+    "name": "plain_two .turbo_stream json",
+    "status": 200,
+    "content_type": "text/vnd.turbo-stream.html; charset=utf-8",
+    "location": null,
+    "body": "<turbo-stream action=\"update\" target=\"f\"><template>turbo=plain_two</template></turbo-stream>\n"
+  },
+  {
+    "name": "plain_two .turbo_stream none",
+    "status": 200,
+    "content_type": "text/vnd.turbo-stream.html; charset=utf-8",
+    "location": null,
+    "body": "<turbo-stream action=\"update\" target=\"f\"><template>turbo=plain_two</template></turbo-stream>\n"
+  },
+  {
+    "name": "plain_two .bogus html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .bogus turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .bogus json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .bogus none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .JSON html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .JSON turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .JSON json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .JSON none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .js html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .js turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .js json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .js none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .all html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .all turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .all json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .all none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .text html",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "plain_two .text turbo",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "plain_two .text json",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "plain_two .text none",
+    "status": 406,
+    "content_type": "text/html; charset=UTF-8",
+    "location": null,
+    "body": ""
+  },
+  {
+    "name": "plain_two .none html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .none turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .none json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two .none none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two ?format=none html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two ?format=none turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two ?format=none json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two ?format=none none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two ?format=NONE html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two ?format=NONE turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two ?format=NONE json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two ?format=NONE none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two ?format= html",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two ?format= turbo",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two ?format= json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
+  },
+  {
+    "name": "plain_two ?format= none",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "location": null,
+    "body": "<p>html=plain_two</p>\n"
   }
 ]

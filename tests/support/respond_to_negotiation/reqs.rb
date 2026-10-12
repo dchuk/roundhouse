@@ -62,3 +62,21 @@ ACC = {
 %w[three plain_two].each do |a|
   ACC.each { |l, acc| add.("#{a} acc #{l}", "/probes/#{a}", acc) }
 end
+# --- numbered/it params, arm guards, branches without arms, path extensions ---
+ACC3 = [["html", "text/html"], ["turbo", TURBO], ["json", "application/json"], ["none", nil]]
+%w[send_arm rescue_render shadow_local numbered it_param].each do |a|
+  ACC3.each { |l, acc| add.("#{a} #{l}", "/probes/#{a}", acc) }
+end
+%w[branch_diff top_branch_diff if_noelse seq_if_noelse else_other_stmt].each do |a|
+  ACC3.each do |l, acc|
+    add.("#{a} #{l}", "/probes/#{a}", acc)
+    add.("#{a} ok #{l}", "/probes/#{a}?ok=1", acc)
+  end
+end
+%w[three plain_two].each do |a|
+  %w[json html turbo_stream bogus JSON js all text none].each do |ext|
+    ACC3.each { |l, acc| add.("#{a} .#{ext} #{l}", "/probes/#{a}.#{ext}", acc) }
+  end
+  %w[none NONE].each { |f| ACC3.each { |l, acc| add.("#{a} ?format=#{f} #{l}", "/probes/#{a}?format=#{f}", acc) } }
+  ACC3.each { |l, acc| add.("#{a} ?format= #{l}", "/probes/#{a}?format=", acc) }
+end

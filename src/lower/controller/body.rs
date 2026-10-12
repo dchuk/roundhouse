@@ -212,23 +212,37 @@ fn report_request_format_assignments(expr: &Expr) {
 /// has the name rewritten to `format` before anything reads the arms.
 fn rename_format_binding(block: &Expr) -> Expr {
     let ExprNode::Lambda { params, .. } = &*block.node else { return block.clone() };
-    let Some(first) = params.first() else { return block.clone() };
-    if first.as_str() == "format" {
-        return block.clone();
-    }
-    let from = first.clone();
-    fn walk(e: &mut Expr, from: &Symbol) {
-        if let ExprNode::Var { name, .. } = &mut *e.node {
-            if name == from {
-                *name = Symbol::from("format");
+    // `respond_to do _1.html … end` / `do it.html … end`: no declared
+    // parameter, the implicit one is read as `_1` or `it`.
+    let implicit = params.is_empty();
+    let from = match params.first() {
+        Some(first) if first.as_str() == "format" => return block.clone(),
+        Some(first) => first.clone(),
+        None => Symbol::from(""),
+    };
+    fn walk(e: &mut Expr, from: &Symbol, implicit: bool) {
+        let is_name = |n: &Symbol| {
+            if implicit { matches!(n.as_str(), "_1" | "it") } else { n == from }
+        };
+        let rename = match &*e.node {
+            ExprNode::Var { name, .. } => is_name(name),
+            ExprNode::Send { recv: None, method, args, block, .. } => {
+                implicit && args.is_empty() && block.is_none() && is_name(method)
             }
+            _ => false,
+        };
+        if rename {
+            *e.node = ExprNode::Var { id: crate::ident::VarId(0), name: Symbol::from("format") };
+            return;
         }
-        e.node.for_each_child_mut(&mut |c| walk(c, from));
+        e.node.for_each_child_mut(&mut |c| walk(c, from, implicit));
     }
     let mut copy = block.clone();
     if let ExprNode::Lambda { params, body, .. } = &mut *copy.node {
-        walk(body, &from);
-        params[0] = Symbol::from("format");
+        walk(body, &from, implicit);
+        if !implicit {
+            params[0] = Symbol::from("format");
+        }
     }
     copy
 }
@@ -488,6 +502,7 @@ fn flatten_negotiated(body: &Expr, breadth: FormatBreadth, ctx: ActionFormats<'_
         ExprNode::Seq { exprs } => {
             let mut arms: Vec<NegotiatedArm> = Vec::new();
             let mut other: Vec<Expr> = Vec::new();
+            let mut branched = false;
             let direct_arms = exprs.iter().any(|e| matches!(classify_negotiated_stmt(e, true), NegotiatedStmt::Arm(..)));
             for e in exprs {
                 match classify_negotiated_stmt(e, false) {
@@ -500,10 +515,11 @@ fn flatten_negotiated(body: &Expr, breadth: FormatBreadth, ctx: ActionFormats<'_
                     // other statements: Rails registers whichever branch
                     // ran, so the branch is its own negotiation, exactly as
                     // when the `if` is the whole block.
-                    NegotiatedStmt::Branches if !direct_arms => {
+                    NegotiatedStmt::Branches(_) if !direct_arms => {
+                        branched = true;
                         other.push(flatten_negotiated(e, breadth, ctx))
                     }
-                    NegotiatedStmt::Branches => report_respond_to_error(
+                    NegotiatedStmt::Branches(true) => report_respond_to_error(
                         "format.<arm>",
                         e.span,
                         "arms in a branch beside direct arms",
@@ -511,7 +527,23 @@ fn flatten_negotiated(body: &Expr, breadth: FormatBreadth, ctx: ActionFormats<'_
                          cannot be lowered: the lowering negotiates one arm set per branch"
                             .to_string(),
                     ),
+                    NegotiatedStmt::Branches(false) => report_respond_to_error(
+                        "format.<arm>",
+                        e.span,
+                        "not a direct arm",
+                        "a `respond_to` arm registered conditionally (`format.json { … } if cond`) \
+                         beside direct arms cannot be lowered; arms must be direct statements of \
+                         the block"
+                            .to_string(),
+                    ),
                 }
+            }
+            // A path that registers no arm at all (`if ok; format.html …;
+            // end` with no else, an else that only `head`s) ends in
+            // UnknownFormat: the collector is empty, so Rails raises after
+            // whatever the path ran.
+            if arms.is_empty() && !branched {
+                other.push(raise_unknown_format(body.span));
             }
             build_negotiated_dispatch(arms, other, body.span, breadth, ctx)
         }
@@ -529,10 +561,13 @@ fn flatten_negotiated(body: &Expr, breadth: FormatBreadth, ctx: ActionFormats<'_
                 register_arm(&mut arms, fmt.as_str(), arm_body, body.span);
                 build_negotiated_dispatch(arms, Vec::new(), body.span, breadth, ctx)
             }
-            NegotiatedStmt::Refused | NegotiatedStmt::Branches => {
+            NegotiatedStmt::Refused | NegotiatedStmt::Branches(_) => {
                 Expr::new(body.span, ExprNode::Seq { exprs: vec![] })
             }
-            NegotiatedStmt::Other => recurse_outer(body),
+            NegotiatedStmt::Other => Expr::new(
+                body.span,
+                ExprNode::Seq { exprs: vec![recurse_outer(body), raise_unknown_format(body.span)] },
+            ),
         },
     }
 }
@@ -545,8 +580,8 @@ enum NegotiatedStmt {
     Refused,
     /// Anything else: ordinary code that runs before negotiation.
     Other,
-    /// An `if`/`else` whose both branches register arms.
-    Branches,
+    /// An `if` with arms in a branch (`true`: in both).
+    Branches(bool),
 }
 
 /// `classify_format_stmt`, plus the registrations that look like arms
@@ -576,9 +611,9 @@ fn classify_negotiated_stmt(e: &Expr, quiet: bool) -> NegotiatedStmt {
     }
     if mentions_format_binding(e) {
         if let ExprNode::If { then_branch, else_branch, .. } = &*e.node {
-            if mentions_format_binding(then_branch) && mentions_format_binding(else_branch) {
-                return NegotiatedStmt::Branches;
-            }
+            return NegotiatedStmt::Branches(
+                mentions_format_binding(then_branch) && mentions_format_binding(else_branch),
+            );
         }
         if quiet {
             return NegotiatedStmt::Refused;

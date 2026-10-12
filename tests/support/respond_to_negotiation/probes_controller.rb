@@ -163,6 +163,110 @@ class ProbesController < ApplicationController
     @who = "plain_two"
   end
 
+  def send_arm
+    @who = "send_arm"
+    respond_to do |format|
+      format.html { send_data "DATA", type: "text/plain" }
+      format.turbo_stream
+    end
+  end
+
+  def rescue_render
+    @who = "rescue_render"
+    respond_to do |format|
+      format.html do
+        begin
+          raise "boom"
+        rescue StandardError
+          render html: "rescued"
+        end
+      end
+      format.turbo_stream
+    end
+  end
+
+  def shadow_local
+    @who = "shadow_local"
+    format = "outer"
+    respond_to do |wants|
+      wants.html { render html: format }
+      wants.json { render json: { f: format } }
+    end
+  end
+
+  def numbered
+    @who = "numbered"
+    respond_to do
+      _1.html { render html: "n" }
+      _1.json { render json: { n: 1 } }
+    end
+  end
+
+  def it_param
+    @who = "it_param"
+    respond_to do
+      it.html { render html: "i" }
+      it.json { render json: { i: 1 } }
+    end
+  end
+
+  # branches with different arm sets
+  def branch_diff
+    @who = "branch_diff"
+    respond_to do |format|
+      @pre = 1
+      if params[:ok]
+        format.html { render html: "ok" }
+        format.json { render json: { ok: true } }
+      else
+        format.html { render html: "bad" }
+      end
+    end
+  end
+
+  def top_branch_diff
+    @who = "top_branch_diff"
+    respond_to do |format|
+      if params[:ok]
+        format.html { render html: "ok" }
+        format.json { render json: { ok: true } }
+      else
+        format.html { render html: "bad" }
+      end
+    end
+  end
+
+  # arms only in one branch, nothing registered in the other
+  def if_noelse
+    @who = "if_noelse"
+    respond_to do |format|
+      if params[:ok]
+        format.html { render html: "ok" }
+      end
+    end
+  end
+
+  def seq_if_noelse
+    @who = "seq_if_noelse"
+    respond_to do |format|
+      @pre = 1
+      if params[:ok]
+        format.html { render html: "ok" }
+      end
+    end
+  end
+
+  def else_other_stmt
+    @who = "else_other_stmt"
+    respond_to do |format|
+      if params[:ok]
+        format.html { render html: "ok" }
+      else
+        head :gone
+      end
+    end
+  end
+
   private
 
   def fail_it
