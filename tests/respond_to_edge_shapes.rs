@@ -41,6 +41,7 @@ const ROUTES: &[(&str, &str)] = &[
 const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("any_multi", "refused_probes"), ("force_json", "refused_probes"), ("force_turbo", "refused_probes"),
     ("force_plain", "refused_probes"), ("cond_arm", "refused_probes"), ("helper_resp", "refused_probes"),
+    ("assign_param", "refused_probes"),
 ];
 
 fn probes_overlay(file: &str, controller: &str, routes: &[(&str, &str)]) -> emit_and_run::Overlay {
@@ -173,6 +174,15 @@ fn respond_to_with_bare_arms_in_a_private_helper_is_an_error() {
         errors.iter().any(|e| e.contains("format.turbo_stream") && e.contains("not in a public action body")),
         "{errors:?}"
     );
+}
+
+/// Renaming the block parameter to `format` is unsound when the block
+/// writes to the parameter: the write would land on the action's own
+/// `format` local. (Reading such a local is fine: `shadow_local`.)
+#[test]
+fn a_write_to_a_renamed_block_parameter_is_an_error() {
+    let errors = refused_errors();
+    assert!(errors.iter().any(|e| e.contains("assigns to its own parameter")), "{errors:?}");
 }
 
 /// Sanity: shapes that SHOULD already agree (control group).

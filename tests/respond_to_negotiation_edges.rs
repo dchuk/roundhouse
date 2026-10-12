@@ -17,7 +17,7 @@ const ACTIONS: &[&str] = &[
     "html_early_return", "html_rescue", "html_status", "pre_assign", "seq_if", "top_if", "wants_param",
     "multi_turbo", "three", "json_only", "html_only", "plain_two", "send_arm", "rescue_render",
     "shadow_local", "numbered", "it_param", "branch_diff", "top_branch_diff", "if_noelse",
-    "seq_if_noelse", "else_other_stmt", "any_two", "nested_named", "nested_rest", "assign_param", "nested_it",
+    "seq_if_noelse", "else_other_stmt", "any_two", "nested_named", "nested_rest", "nested_it",
 ];
 
 fn view(rel: &str) -> String {
@@ -168,5 +168,5 @@ fn bare_format_any_renders_the_negotiated_template() {
 /// binding.
 #[test]
 fn nested_blocks_keep_their_own_parameter() {
-    replay(&["nested_named ", "nested_rest ", "assign_param ", "nested_it "]);
+    replay(&["nested_named ", "nested_rest ", "nested_it "]);
 }

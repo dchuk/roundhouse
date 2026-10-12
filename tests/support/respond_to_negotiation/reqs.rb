@@ -81,6 +81,6 @@ end
   ACC3.each { |l, acc| add.("#{a} ?format= #{l}", "/probes/#{a}?format=", acc) }
 end
 
-%w[any_two nested_named nested_rest assign_param nested_it].each do |a|
+%w[any_two nested_named nested_rest nested_it].each do |a|
   ACC3.each { |l, acc| add.("#{a} #{l}", "/probes/#{a}", acc) }
 end

@@ -210,6 +210,37 @@ fn report_request_format_assignments(expr: &Expr) {
 /// `respond_to do |wants| wants.html … end`: the arms are recognised by
 /// the binding being named `format`, so a block that names it otherwise
 /// has the name rewritten to `format` before anything reads the arms.
+/// Why the respond_to block parameter cannot be renamed to `format`, if
+/// it cannot: the block writes to the parameter (`f = "x"`). Renamed, that
+/// write would land on the action's own `format` local, if it has one,
+/// where Rails rebinds only the block's parameter. Reads of a `format`
+/// local are safe: the arms are flattened into the negotiated dispatch, so
+/// no binding named `format` is left to shadow it (`shadow_local`).
+fn rename_conflict(block: &Expr) -> Option<&'static str> {
+    let ExprNode::Lambda { params, body, .. } = &*block.node else { return None };
+    if params.first().is_some_and(|p| p.as_str() == "format") {
+        return None;
+    }
+    let from = params.first().cloned();
+    fn scan(e: &Expr, from: &Option<Symbol>, found: &mut Option<&'static str>) {
+        if found.is_some() {
+            return;
+        }
+        if let ExprNode::Assign { target: LValue::Var { name, .. }, .. }
+        | ExprNode::OpAssign { target: LValue::Var { name, .. }, .. } = &*e.node
+        {
+            if from.as_ref() == Some(name) {
+                *found = Some("assigns to its own parameter");
+                return;
+            }
+        }
+        e.node.for_each_child(&mut |c| scan(c, from, found));
+    }
+    let mut found = None;
+    scan(body, &from, &mut found);
+    found
+}
+
 fn rename_format_binding(block: &Expr) -> Expr {
     let ExprNode::Lambda { params, .. } = &*block.node else { return block.clone() };
     // `respond_to do _1.html … end` / `do it.html … end`: no declared
@@ -256,17 +287,6 @@ fn rename_format_binding(block: &Expr) -> Expr {
             rename(e);
             return;
         }
-        // A write to the binding (`f = "x"` / `f ||= …` inside an arm)
-        // is renamed with its reads, so both name the same local.
-        if !implicit {
-            if let ExprNode::Assign { target: LValue::Var { name, .. }, .. }
-            | ExprNode::OpAssign { target: LValue::Var { name, .. }, .. } = &mut *e.node
-            {
-                if name == from {
-                    *name = Symbol::from("format");
-                }
-            }
-        }
         let arm_call = matches!(&*e.node, ExprNode::Send { recv: Some(r), .. } if is_binding(r, from, implicit));
         if arm_call {
             if let ExprNode::Send { recv: Some(r), args, block, .. } = &mut *e.node {
@@ -309,6 +329,19 @@ fn unwrap_respond_to_inner(
     // children via the generic path.
     if let ExprNode::Send { recv: None, method, block: Some(block), .. } = &*expr.node {
         if method.as_str() == "respond_to" {
+            if let Some(reason) = rename_conflict(block) {
+                report_respond_to_error(
+                    "respond_to",
+                    expr.span,
+                    "block parameter cannot be renamed",
+                    format!(
+                        "a `respond_to` block whose parameter is not named `format` {reason}; \
+                         the lowering reads the arms through `format`, and renamed, that \
+                         write would land on the action's own `format` local"
+                    ),
+                );
+                return expr.clone();
+            }
             let renamed = rename_format_binding(block);
             let lambda_body = unwrap_lambda(&renamed);
             if with_format_dispatch && breadth.negotiates {

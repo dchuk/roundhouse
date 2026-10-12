@@ -44,6 +44,15 @@ class RefusedProbesController < ApplicationController
     end
   end
 
+  # an arm that assigns to the block parameter
+  def assign_param
+    @who = "assign_param"
+    respond_to do |f|
+      f.html { f = "hello"; render html: f }
+      f.json { render json: { a: 1 } }
+    end
+  end
+
   # respond_to in a private helper, bare arms
   def helper_resp
     @who = "helper_resp"
