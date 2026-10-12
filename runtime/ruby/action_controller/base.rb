@@ -985,13 +985,25 @@ module ActionController
     # parsed `Accept` list, else html.
     #
     # A caller that only set `request_format` (the test harness) pins it.
-    def negotiate_format(order)
+    #
+    # `template` is the implicit render's selection (`default_render`
+    # looks a TEMPLATE up against the request's formats, where a
+    # `respond_to` matches arms): a pinned format Rails' registry does not
+    # know (`?format=bogus`, `JSON`, `all`, an empty value) leaves the
+    # lookup unconstrained, so it takes the first template, as `*/*` does;
+    # a pinned `js` falls back to html (ActionView's `formats=`). Any
+    # other pinned format that has no template answers "" (406).
+    def negotiate_format(order, template = false)
       pinned = @explicit_format
       if pinned.empty? && @accept_header.empty? && @request_format != :html
         pinned = @request_format.to_s
       end
       if !pinned.empty?
         return pinned if order.include?(pinned)
+        if template
+          return "html" if pinned == "js" && order.include?("html")
+          return order[0].to_s if Mime[pinned].nil?
+        end
         return "any" if order.include?("any")
         return ""
       end

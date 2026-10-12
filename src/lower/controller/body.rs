@@ -796,7 +796,7 @@ fn build_negotiated_dispatch(
         chain = Expr::new(
             span,
             ExprNode::If {
-                cond: negotiated_format_is(span, &order, &fmt),
+                cond: negotiated_format_is(span, &order, &fmt, false),
                 then_branch: body,
                 else_branch: chain,
             },
@@ -1016,21 +1016,30 @@ fn is_inline_primitive_json_render(body: &Expr) -> bool {
     json_value.is_some_and(crate::lower::controller_to_library::rewrites::json_primitive_value)
 }
 
-/// `negotiate_format(["a", "b"]) == "<fmt>"`.
-fn negotiated_format_is(span: Span, order: &[String], fmt: &str) -> Expr {
+/// `negotiate_format(["a", "b"]) == "<fmt>"`; with `template`, the
+/// implicit render's variant, `negotiate_format(["a", "b"], true)`, which
+/// reads a pinned format no template could carry the way Rails' template
+/// lookup does (see `Base#negotiate_format`).
+fn negotiated_format_is(span: Span, order: &[String], fmt: &str, template: bool) -> Expr {
     let str_lit = |s: &str| Expr::new(span, ExprNode::Lit { value: Literal::Str { value: s.to_string() } });
     let negotiate = Expr::new(
         span,
         ExprNode::Send {
             recv: None,
             method: Symbol::from("negotiate_format"),
-            args: vec![Expr::new(
-                span,
-                ExprNode::Array {
-                    elements: order.iter().map(|f| str_lit(f)).collect(),
-                    style: crate::expr::ArrayStyle::Brackets,
-                },
-            )],
+            args: {
+                let mut args = vec![Expr::new(
+                    span,
+                    ExprNode::Array {
+                        elements: order.iter().map(|f| str_lit(f)).collect(),
+                        style: crate::expr::ArrayStyle::Brackets,
+                    },
+                )];
+                if template {
+                    args.push(Expr::new(span, ExprNode::Lit { value: Literal::Bool { value: true } }));
+                }
+                args
+            },
             block: None,
             parenthesized: true,
         },
@@ -1674,7 +1683,7 @@ fn implicit_terminal(
         terminal = Expr::new(
             span,
             ExprNode::If {
-                cond: negotiated_format_is(span, &order_owned, fmt),
+                cond: negotiated_format_is(span, &order_owned, fmt, true),
                 then_branch: branch,
                 else_branch: terminal,
             },
