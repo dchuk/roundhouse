@@ -712,6 +712,126 @@ module ActionController
     # The dispatcher sets it; false keeps every other request on the
     # html path.
     attr_accessor :accepts_any_format
+    # The request's raw `Accept` header ("" when it sent none), and the
+    # format its URL PINS ("" when it pins none): a `.json` suffix, a
+    # `(.:format)` segment, a route's `format:` default. The dispatchers
+    # set both; `negotiate_format` is the only reader.
+    attr_accessor :accept_header
+    attr_accessor :explicit_format
+    # Rails' `ActionController::MimeResponds#respond_to` selection, for
+    # the arms the lowering registered (`order`, in source order, as
+    # format names: "html", "turbo_stream", "json", "any", …). Answers
+    # the name of the arm that handles this request, or "" when none
+    # does, which the lowered `respond_to` turns into
+    # `ActionController::UnknownFormat` (406).
+    #
+    # `Request#negotiate_mime`: the requested formats are tried in
+    # order; the first one with an arm wins; a `*/*` entry takes the
+    # FIRST arm; a request nothing answers falls to an `any` arm when
+    # there is one. The requested formats are the pinned format alone
+    # when the URL pins one (`params[:format]` beats `Accept`), else the
+    # parsed `Accept` list, else html.
+    #
+    # A caller that only set `request_format` (the test harness) pins it.
+    def negotiate_format(order)
+      pinned = @explicit_format
+      if pinned.empty? && @accept_header.empty? && @request_format != :html
+        pinned = @request_format.to_s
+      end
+      if !pinned.empty?
+        return pinned if order.include?(pinned)
+        return "any" if order.include?("any")
+        return ""
+      end
+      accepted = accepted_format_names
+      i = 0
+      while i < accepted.length
+        name = accepted[i]
+        if name == "*/*"
+          first = ""
+          first = order[0].to_s if order.length > 0
+          return first
+        end
+        return name if order.include?(name)
+        i += 1
+      end
+      return "any" if order.include?("any")
+      ""
+    end
+
+    # What `ActionDispatch::PublicExceptions` answers for the
+    # `UnknownFormat` a `respond_to` raised: the status page in the
+    # format the request ASKED for. A json request gets Rails' json
+    # status document; every other format gets the empty html page
+    # (Rails renders other formats' status pages too — xml, text — which
+    # no app here reaches).
+    def unacceptable_requested_json?
+      requested = @explicit_format
+      if requested.empty?
+        names = accepted_format_names
+        requested = names[0].to_s if names.length > 0
+      end
+      requested == "json"
+    end
+
+    def unacceptable_body
+      unacceptable_requested_json? ? "{\"status\":406,\"error\":\"Not Acceptable\"}" : ""
+    end
+
+    def unacceptable_content_type
+      unacceptable_requested_json? ? "application/json; charset=UTF-8" : "text/html; charset=UTF-8"
+    end
+
+    # `Request#formats` from the `Accept` header, as format names in
+    # preference order (highest q first, ties in header order). A blank
+    # header, or a browser's list that ends in or contains `*/*` beside
+    # other types (Rails' BROWSER_LIKE_ACCEPTS), is html alone. The
+    # XMLHttpRequest case (`X-Requested-With`, which makes that list
+    # trusted) is not modeled; Turbo's fetch does not send it.
+    def accepted_format_names
+      accept = @accept_header
+      return ["html"] if accept.strip.empty?
+      squeezed = accept.gsub(" ", "").gsub("\t", "")
+      return ["html"] if squeezed.include?(",*/*") || squeezed.include?("*/*,")
+      # Entry 0 of each list is a sentinel (q above any real value): the
+      # insertion walk below never indexes before the start, and the
+      # lists are typed by their first element.
+      names = [""]
+      qs = [2.0]
+      accept.split(",").each do |item|
+        parts = item.split(";")
+        mime = parts[0].to_s.strip.downcase
+        name = mime
+        name = format_name_for_mime(mime) unless mime == "*/*"
+        next if name.empty?
+        q = 1.0
+        j = 1
+        while j < parts.length
+          param = parts[j].to_s.strip
+          q = param[2, param.length].to_s.to_f if param.start_with?("q=")
+          j += 1
+        end
+        # Insert after every entry whose q is at least this one's.
+        at = names.length
+        while qs[at - 1] < q
+          at -= 1
+        end
+        names.insert(at, name)
+        qs.insert(at, q)
+      end
+      names.delete_at(0)
+      names
+    end
+
+    # "text/vnd.turbo-stream.html" -> "turbo_stream"; "" when the type is
+    # not one the registry knows.
+    def format_name_for_mime(mime)
+      return "" unless Mime::Type.valid?(mime)
+      symbol = Mime::Type.lookup(mime).symbol
+      return "" if symbol.nil?
+      symbol.to_s
+    end
+
     # Rails' `request.path_parameters`: the matched route's own segments
     # (`{"length" => "1y"}` on `/top/1y`), not the query string. The
     # dispatcher assigns it; a `url_for` options hash reads it to fill a
@@ -765,6 +885,8 @@ module ActionController
       @request_format = :html
       @query_string = +""
       @accepts_any_format = false
+      @accept_header = +""
+      @explicit_format = +""
       @content_type = "text/html; charset=utf-8"
       @content_type_explicit = false
       @headers = ActionController::HeaderStore.new

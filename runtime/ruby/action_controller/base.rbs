@@ -138,10 +138,22 @@ module ActionController
     def query_string=: (String) -> String
     def accepts_any_format: () -> bool
     def accepts_any_format=: (bool) -> bool
+    def accept_header: () -> String
+    def accept_header=: (String) -> String
+    def explicit_format: () -> String
+    def explicit_format=: (String) -> String
+    def negotiate_format: (Array[String] order) -> String
+    def accepted_format_names: () -> Array[String]
+    def unacceptable_requested_json?: () -> bool
+    def unacceptable_body: () -> String
+    def unacceptable_content_type: () -> String
+    def format_name_for_mime: (String mime) -> String
     def path_parameters: () -> Hash[String, String]
     def path_parameters=: (Hash[String, String]) -> Hash[String, String]
     @headers: ActionController::HeaderStore
     @content_type_explicit: bool
+    @accept_header: String
+    @explicit_format: String
     @head_response: bool
     @cache_control: ActionController::CacheControlStore
     def action_name: () -> String
