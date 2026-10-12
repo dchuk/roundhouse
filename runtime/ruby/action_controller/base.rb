@@ -130,12 +130,62 @@ module ActionController
     return ["html"] if accept.strip.empty?
     squeezed = accept.gsub(" ", "").gsub("\t", "")
     return ["html"] if squeezed.include?(",*/*") || squeezed.include?("*/*,")
-    items = accept.split(",")
+    items = expand_trailing_stars(accept.split(","))
     names = accept_item_names(items)
     qs = accept_item_qs(items)
     # An item's slot is the number of items that outrank it.
     ranks = outranking_counts(qs)
     ordered_non_empty(names, ranks)
+  end
+
+  # `text/*` and `application/*` expand to the registered types they
+  # match, in Rails' registration order, each keeping the item's
+  # parameters (so its q): Rails' `parse_trailing_star`. Only those two
+  # prefixes, and case-sensitively, as upstream's TRAILING_STAR_REGEXP.
+  def self.expand_trailing_stars(items)
+    out = []
+    i = 0
+    while i < items.length
+      item = items[i].to_s
+      star = trailing_star_mimes(item.strip)
+      if star.empty?
+        out << item
+      else
+        rest = item.include?(";") ? ";" + item.split(";", 2)[1].to_s : ""
+        out.concat(star_items(star, rest))
+      end
+      i += 1
+    end
+    out
+  end
+
+  def self.star_items(mimes, rest)
+    items = []
+    j = 0
+    while j < mimes.length
+      items << mimes[j].to_s + rest
+      j += 1
+    end
+    items
+  end
+
+  # The mime types `Mime::Type.parse("<prefix>/*")` answers under
+  # actionpack 8.1.3.1 + turbo-rails 2.0.23, in order (a type matches
+  # when its string or a synonym contains the prefix: `text/xml` and
+  # `text/x-json` put xml and json under `text`; turbo_stream registers
+  # last).
+  def self.trailing_star_mimes(item)
+    if item.start_with?("text/*")
+      return ["text/html", "text/plain", "text/javascript", "text/css", "text/calendar",
+              "text/csv", "text/vcard", "text/vtt", "text/markdown", "application/xml",
+              "application/x-yaml", "application/json", "text/vnd.turbo-stream.html"]
+    end
+    if item.start_with?("application/*")
+      return ["text/html", "text/javascript", "application/xml", "application/rss+xml",
+              "application/atom+xml", "application/x-yaml", "application/x-www-form-urlencoded",
+              "application/json", "application/pdf", "application/zip", "application/gzip"]
+    end
+    []
   end
 
   def self.accept_item_names(items)
@@ -159,7 +209,8 @@ module ActionController
   end
 
   def self.accept_item_name(item)
-    mime = item.split(";")[0].to_s.strip.downcase
+    # Case-sensitive, as Rails' registry lookup is: `TEXT/HTML` is no type.
+    mime = item.split(";")[0].to_s.strip
     return "*/*" if mime == "*/*"
     format_name_for_mime(mime)
   end

@@ -10,6 +10,9 @@ module ActionController
   def self.header_control?: (String c) -> bool
   def self.sanitize_location: (String path) -> String
   def self.accepted_formats: (String accept) -> Array[String]
+  def self.expand_trailing_stars: (Array[String] items) -> Array[String]
+  def self.star_items: (Array[String] mimes, String rest) -> Array[String]
+  def self.trailing_star_mimes: (String item) -> Array[String]
   def self.accept_item_names: (Array[String] items) -> Array[String]
   def self.accept_item_qs: (Array[String] items) -> Array[Float]
   def self.accept_item_name: (String item) -> String

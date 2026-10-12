@@ -165,7 +165,46 @@ pub fn unwrap_respond_to_for_action(
     breadth: FormatBreadth,
     ctx: ActionFormats<'_>,
 ) -> Expr {
+    if breadth.negotiates {
+        report_request_format_assignments(expr);
+    }
     unwrap_respond_to_inner(expr, /*with_format_dispatch=*/ true, breadth, ctx)
+}
+
+/// `request.format = :json` in an action. Rails re-pins the request's
+/// format list there, which every later `respond_to` and implicit render
+/// honors; the runtime's request has no such setter (negotiation reads
+/// the Accept header and the URL's pinned format), so the call would be a
+/// NoMethodError at runtime. An error at compile time instead.
+fn report_request_format_assignments(expr: &Expr) {
+    fn is_request(e: &Expr) -> bool {
+        matches!(&*e.node, ExprNode::Send { recv: None, method, args, .. }
+            if method.as_str() == "request" && args.is_empty())
+    }
+    fn walk(e: &Expr) {
+        let hit = match &*e.node {
+            ExprNode::Assign { target: LValue::Attr { recv, name }, .. } => {
+                name.as_str() == "format" && is_request(recv)
+            }
+            ExprNode::Send { recv: Some(recv), method, .. } => {
+                method.as_str() == "format=" && is_request(recv)
+            }
+            _ => false,
+        };
+        if hit {
+            report_respond_to_error(
+                "request.format=",
+                e.span,
+                "not modeled",
+                "`request.format = …` cannot be lowered: the request's format is its Accept \
+                 header and the URL's pinned format, with no setter, so the call would be a \
+                 NoMethodError at runtime"
+                    .to_string(),
+            );
+        }
+        e.node.for_each_child(&mut |c| walk(c));
+    }
+    walk(expr);
 }
 
 fn unwrap_respond_to_inner(
@@ -423,9 +462,12 @@ fn flatten_negotiated(body: &Expr, breadth: FormatBreadth, ctx: ActionFormats<'_
             let mut arms: Vec<NegotiatedArm> = Vec::new();
             let mut other: Vec<Expr> = Vec::new();
             for e in exprs {
-                match classify_format_stmt(e) {
-                    Some((fmt, arm_body)) => register_arm(&mut arms, fmt.as_str(), arm_body, e.span),
-                    None => other.push(recurse_outer(e)),
+                match classify_negotiated_stmt(e) {
+                    NegotiatedStmt::Arm(fmt, arm_body) => {
+                        register_arm(&mut arms, fmt.as_str(), arm_body, e.span)
+                    }
+                    NegotiatedStmt::Refused => {}
+                    NegotiatedStmt::Other => other.push(recurse_outer(e)),
                 }
             }
             build_negotiated_dispatch(arms, other, body.span, breadth, ctx)
@@ -438,15 +480,82 @@ fn flatten_negotiated(body: &Expr, breadth: FormatBreadth, ctx: ActionFormats<'_
                 else_branch: flatten_negotiated(else_branch, breadth, ctx),
             },
         ),
-        _ => match classify_format_stmt(body) {
-            Some((fmt, arm_body)) => {
+        _ => match classify_negotiated_stmt(body) {
+            NegotiatedStmt::Arm(fmt, arm_body) => {
                 let mut arms = Vec::new();
                 register_arm(&mut arms, fmt.as_str(), arm_body, body.span);
                 build_negotiated_dispatch(arms, Vec::new(), body.span, breadth, ctx)
             }
-            None => recurse_outer(body),
+            NegotiatedStmt::Refused => Expr::new(body.span, ExprNode::Seq { exprs: vec![] }),
+            NegotiatedStmt::Other => recurse_outer(body),
         },
     }
+}
+
+/// What one statement of a negotiated `respond_to` block is.
+enum NegotiatedStmt {
+    /// A direct `format.<x> [{ … }]` registration.
+    Arm(Symbol, Expr),
+    /// A registration this lowering cannot honor; an error is reported.
+    Refused,
+    /// Anything else: ordinary code that runs before negotiation.
+    Other,
+}
+
+/// `classify_format_stmt`, plus the registrations that look like arms
+/// but are not: `format.any(:json, :turbo_stream) { … }` (the mime list
+/// would be dropped and the arm answer formats it never named) and an
+/// arm registered conditionally (`format.json { … } if cond`, or inside
+/// any other construct), which would otherwise be emitted verbatim with
+/// `format` unbound. Both are errors, never silent.
+fn classify_negotiated_stmt(e: &Expr) -> NegotiatedStmt {
+    if let ExprNode::Send { recv: Some(recv), method, args, .. } = &*e.node {
+        if is_format_binding(recv) {
+            if method.as_str() == "any" && !args.is_empty() {
+                report_unrunnable_arm(
+                    "any",
+                    e.span,
+                    "a mime list (`format.any(:json, :turbo_stream)`) would be dropped, and the \
+                     arm would answer formats it never named",
+                );
+                return NegotiatedStmt::Refused;
+            }
+            if let Some((fmt, body)) = classify_format_stmt(e) {
+                return NegotiatedStmt::Arm(fmt, body);
+            }
+        }
+    }
+    if mentions_format_binding(e) {
+        report_respond_to_error(
+            "format.<arm>",
+            e.span,
+            "not a direct arm",
+            "a `respond_to` arm registered conditionally (`format.json { … } if cond`) or inside \
+             another construct cannot be lowered; arms must be direct statements of the block"
+                .to_string(),
+        );
+        return NegotiatedStmt::Refused;
+    }
+    NegotiatedStmt::Other
+}
+
+/// True when `e` calls a method on the `respond_to` block's `format`.
+fn mentions_format_binding(e: &Expr) -> bool {
+    fn walk(e: &Expr, found: &mut bool) {
+        if *found {
+            return;
+        }
+        if let ExprNode::Send { recv: Some(recv), .. } = &*e.node {
+            if is_format_binding(recv) {
+                *found = true;
+                return;
+            }
+        }
+        e.node.for_each_child(&mut |c| walk(c, found));
+    }
+    let mut found = false;
+    walk(e, &mut found);
+    found
 }
 
 /// One `format.<x>` registration, in source order.
@@ -553,10 +662,8 @@ fn lower_negotiated_arm(arm: &NegotiatedArm, breadth: FormatBreadth, ctx: Action
         // `format.html` with no block renders the action's html template
         // through the implicit render that follows; `format.any` runs
         // whatever it was given for every format no arm above claimed.
-        "html" if bare && ctx.html_template && ctx.action.is_some() => ArmOutcome::Body(
-            render_symbol_send(ctx.action.unwrap_or_default(), arm.span),
-        ),
-        "html" | "any" => ArmOutcome::Body(recurse_outer(&arm.body)),
+        "html" => ArmOutcome::Body(html_arm_body(&recurse_outer(&arm.body), bare, arm.span, ctx)),
+        "any" => ArmOutcome::Body(recurse_outer(&arm.body)),
         "json" => {
             if bare {
                 return or_refused(implicit_template_arm("json", arm.span, ctx));
@@ -604,6 +711,63 @@ fn lower_negotiated_arm(arm: &NegotiatedArm, breadth: FormatBreadth, ctx: Action
             ArmOutcome::Refused
         }
     }
+}
+
+/// The html arm, finished the way Rails finishes it.
+///
+/// `respond_to` pins the template lookup to the arm that ran, so an html
+/// arm that does not respond renders the action's HTML template, never
+/// whichever template the implicit render behind the chain would have
+/// negotiated for the same `Accept` (a Turbo list names turbo_stream
+/// first). The arm therefore ends in its own default render:
+///
+/// - the action has an html template: `render :<action>`, guarded by
+///   `performed?` when the block may already have responded;
+/// - it has none but another format's template exists: Rails'
+///   `default_render` raises `UnknownFormat` (406), and so does the arm,
+///   rather than serve the other template;
+/// - no template at all: unchanged (the implicit tail's `head
+///   :no_content`).
+///
+/// An arm outside a public action (`ctx.action` is `None`) is left as
+/// written; the unrunnable bare arms of that shape are refused elsewhere.
+fn html_arm_body(lowered: &Expr, bare: bool, span: Span, ctx: ActionFormats<'_>) -> Expr {
+    let Some(action) = ctx.action else { return lowered.clone() };
+    if !bare && has_toplevel_terminal(lowered) {
+        return lowered.clone();
+    }
+    let default = if ctx.html_template {
+        render_symbol_send(action, span)
+    } else if !ctx.variants.is_empty() {
+        raise_unknown_format(span)
+    } else {
+        return lowered.clone();
+    };
+    if bare {
+        return default;
+    }
+    let default = if contains_terminal(lowered) {
+        Expr::new(
+            span,
+            ExprNode::If {
+                cond: Expr::new(
+                    span,
+                    ExprNode::Send {
+                        recv: None,
+                        method: Symbol::from("performed?"),
+                        args: Vec::new(),
+                        block: None,
+                        parenthesized: false,
+                    },
+                ),
+                then_branch: Expr::new(span, ExprNode::Lit { value: Literal::Nil }),
+                else_branch: default,
+            },
+        )
+    } else {
+        default
+    };
+    append_statement(lowered, default)
 }
 
 /// `render :<action>, format: :<fmt>` for an arm with no body of its
@@ -724,6 +888,20 @@ fn raise_unknown_format(span: Span) -> Expr {
             ),
         },
     )
+}
+
+/// A `respond_to` construct the negotiating tree cannot run, as an ERROR.
+fn report_respond_to_error(construct: &str, span: Span, reason: &'static str, message: String) {
+    crate::emit::diagnostics::push(Diagnostic {
+        span,
+        severity: crate::diagnostic::Severity::Error,
+        kind: DiagnosticKind::LowerResidue {
+            pass: Symbol::from("respond_to_negotiate"),
+            construct: Symbol::from(construct),
+            reason: Symbol::from(reason),
+        },
+        message,
+    });
 }
 
 /// An arm the negotiating tree cannot run. An ERROR: the arm's absence

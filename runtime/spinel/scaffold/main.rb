@@ -414,6 +414,19 @@ module Main
       explicit_format = "xml"
     end
 
+    # The `?format=json` QUERY parameter: Rails reads `params[:format]`,
+    # route and path parameters over query ones, so it pins only when
+    # nothing above did. Same literal comparisons as above.
+    query_format = req.req_params.fetch("format", "").to_s
+    if explicit_format.empty? && !query_format.empty?
+      explicit_format = query_format
+      request_format = :json if query_format == "json"
+      request_format = :turbo_stream if query_format == "turbo_stream"
+      request_format = :rss if query_format == "rss"
+      request_format = :xml if query_format == "xml"
+      request_format = :js if query_format == "js"
+    end
+
     controller = Main.instantiate_controller(matched.controller)
     # The nested Rails-style params (params["article"]["title"]) the
     # per-resource *Params.from_raw factories expect; see request_params.
