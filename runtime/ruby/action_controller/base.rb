@@ -1071,6 +1071,7 @@ module ActionController
     def accept_header=(value)
       @accepted_format_names = nil
       @accept_header = value
+      @accept_header
     end
 
     # Rails' `request.path_parameters`: the matched route's own segments
